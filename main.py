@@ -13,7 +13,7 @@ def run_bot():
 
 def run_agent():
     """Запускает ИИ агента"""
-    subprocess.run([sys.executable, "agent/ai_agent.py"])
+    subprocess.run([sys.executable, "agent/main.py"])
 
 
 def signal_handler(sig, frame):

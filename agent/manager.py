@@ -1,69 +1,24 @@
 import asyncio
 import os
+import json
+from datetime import datetime, timedelta
+from typing import Dict, Any
 from dotenv import load_dotenv
 import sys
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from shared.database import db, Task, init_db
+from shared.database import (
+    db, Task, ResearchTopic, UserSettings, init_db
+)
 from peewee import DoesNotExist
-from shared.llm import AGENT_MODEL
 from shared.logger import get_logger
 from shared.event_system import get_event_bus, Event, task_events
-from agents import Agent, Runner
+from agent.agent import ArxivAnalysisAgent
 
 load_dotenv()
 
 logger = get_logger(__name__)
-
-
-class AIAgent:
-    def __init__(self):
-        # Создаем агента с системным промптом
-        self.agent = Agent(
-            name="AI Assistant",
-            model=AGENT_MODEL,
-            instructions="Ты полезный ИИ-ассистент. Отвечай на вопросы пользователя кратко и информативно.",
-        )
-
-    async def process_message(self, message_text: str) -> str:
-        """Обрабатывает сообщение с помощью agents SDK"""
-        try:
-            # Используем Runner для обработки сообщения
-            result = await Runner.run(self.agent, message_text)
-
-            if result and result.final_output:
-                return str(result.final_output).strip()
-            else:
-                return "Извините, не удалось получить ответ от ИИ."
-
-        except Exception as e:
-            error_msg = str(e)
-            logger.error(
-                f"Ошибка при обработке сообщения через agents SDK: {error_msg}"
-            )
-            return f"Извините, произошла ошибка при обработке вашего сообщения: {error_msg}"
-
-    async def process_task(self, task: Task) -> str:
-        """Обрабатывает конкретную задачу в зависимости от её типа"""
-        try:
-            logger.info(f"Начинаю обработку задачи {task.id} типа {task.task_type}")
-
-            if task.task_type == "process_message":
-                result = await self.process_message(str(task.data))
-                logger.info(
-                    f"Задача {task.id} успешно обработана, результат: {len(result)} символов"
-                )
-                return result
-            else:
-                error_msg = f"Неизвестный тип задачи: {task.task_type}"
-                logger.warning(error_msg)
-                return error_msg
-
-        except Exception as e:
-            error_msg = f"Ошибка обработки: {str(e)}"
-            logger.error(f"Ошибка при обработке задачи {task.id}: {e}")
-            return error_msg
 
 
 async def handle_task_creation(event: Event):
@@ -77,7 +32,7 @@ async def handle_task_creation(event: Event):
             return
 
         logger.info(
-            f"🚀 РЕАЛЬНЫЙ АГЕНТ: Получено уведомление о новой задаче {task_id} типа {task_type}"
+            f"🚀 arXiv АГЕНТ: Получено уведомление о новой задаче {task_id} типа {task_type}"
         )
 
         db.connect()
@@ -97,7 +52,7 @@ async def handle_task_creation(event: Event):
             task.save()
 
             # Создаем агента и обрабатываем задачу
-            agent = AIAgent()
+            agent = ArxivAnalysisAgent()
             result = await agent.process_task(task)
 
             # Сохраняем результат
@@ -108,7 +63,7 @@ async def handle_task_creation(event: Event):
             # Уведомляем о завершении через систему событий
             task_events.task_completed(task_id=task.id, result=result)
 
-            logger.info(f"Задача {task_id} успешно завершена и результат отправлен")
+            logger.info(f"Задача {task_id} успешно завершена: {result}")
 
         except DoesNotExist:
             logger.error(f"Задача {task_id} не найдена в базе данных")
@@ -130,37 +85,7 @@ async def handle_task_creation(event: Event):
         logger.error(f"Критическая ошибка в обработчике создания задач: {e}")
 
 
-async def main():
-    """Основной цикл ИИ агента - гибридный подход"""
-    logger.info("Запуск ИИ агента...")
-
-    init_db()
-    agent = AIAgent()
-
-    # ПЛАН A: Подписываемся на события для новых задач
-    event_bus = get_event_bus()
-    task_events.subscribe_to_creations(handle_task_creation)
-
-    logger.info("ИИ агент готов к обработке задач (гибридный режим)")
-    logger.info("- События: для новых задач")
-    logger.info("- Polling: для пропущенных задач")
-
-    # Запускаем обработку событий в фоне
-    asyncio.create_task(event_bus.start_processing(poll_interval=0.5))
-
-    # ПЛАН B: Параллельно проверяем необработанные задачи каждые 10 секунд
-    while True:
-        try:
-            # Проверяем необработанные задачи
-            await check_and_process_pending_tasks(agent)
-            await asyncio.sleep(10)  # Проверяем каждые 10 секунд
-
-        except Exception as e:
-            logger.error(f"Ошибка в цикле проверки задач: {e}")
-            await asyncio.sleep(5)
-
-
-async def check_and_process_pending_tasks(agent: AIAgent):
+async def check_and_process_pending_tasks(agent: ArxivAnalysisAgent):
     """Проверка и обработка необработанных задач"""
     try:
         db.connect()
@@ -175,7 +100,7 @@ async def check_and_process_pending_tasks(agent: AIAgent):
 
             for task in pending_tasks:
                 try:
-                    logger.info(f"🔄 Обрабатываем пропущенную задачу {task.id}")
+                    logger.info(f"🔄 Обрабатываем пропущенную задачу {task.id} типа {task.task_type}")
 
                     # Помечаем как обрабатываемую
                     task.status = "processing"
@@ -204,6 +129,90 @@ async def check_and_process_pending_tasks(agent: AIAgent):
 
     except Exception as e:
         logger.error(f"Ошибка при проверке необработанных задач: {e}")
+
+
+async def periodic_monitoring(agent: ArxivAnalysisAgent):
+    """Периодический мониторинг активных исследовательских тем"""
+    try:
+        db.connect()
+        
+        # Получаем все активные темы
+        active_topics = ResearchTopic.select().where(ResearchTopic.is_active)
+        
+        for topic in active_topics:
+            try:
+                # Проверяем, включен ли мониторинг для пользователя
+                try:
+                    settings = UserSettings.get(UserSettings.user_id == topic.user_id)
+                    if not settings.monitoring_enabled:
+                        continue
+                except DoesNotExist:
+                    continue
+                
+                # Проверяем, когда последний раз мониторили эту тему
+                user_monitoring = agent.monitoring_active.get(topic.user_id)
+                if user_monitoring:
+                    last_check = user_monitoring.get("last_check", datetime.now() - timedelta(hours=1))
+                    if datetime.now() - last_check < timedelta(minutes=30):
+                        continue  # Слишком рано для повторной проверки
+                
+                logger.info(f"Периодический мониторинг темы {topic.id} для пользователя {topic.user_id}")
+                
+                # Выполняем поиск новых статей
+                await agent.perform_arxiv_search(
+                    topic.user_id, 
+                    topic.target_topic, 
+                    topic.search_area, 
+                    topic.id
+                )
+                
+                # Обновляем время последней проверки
+                if topic.user_id in agent.monitoring_active:
+                    agent.monitoring_active[topic.user_id]["last_check"] = datetime.now()
+                
+            except Exception as e:
+                logger.error(f"Ошибка при мониторинге темы {topic.id}: {e}")
+        
+        db.close()
+        
+    except Exception as e:
+        logger.error(f"Ошибка при периодическом мониторинге: {e}")
+        db.close()
+
+
+async def main():
+    """Основной цикл arXiv анализа агента"""
+    logger.info("Запуск arXiv анализа агента...")
+
+    init_db()
+    agent = ArxivAnalysisAgent()
+
+    # Подписываемся на события для новых задач
+    event_bus = get_event_bus()
+    task_events.subscribe_to_creations(handle_task_creation)
+
+    logger.info("arXiv агент готов к работе!")
+    logger.info("- Мониторинг arXiv статей")
+    logger.info("- Двухэтапный анализ тем")
+    logger.info("- Автоматические отчеты")
+
+    # Запускаем обработку событий в фоне
+    asyncio.create_task(event_bus.start_processing(poll_interval=0.5))
+
+    # Основной цикл - периодический мониторинг активных тем
+    while True:
+        try:
+            # Проверяем необработанные задачи
+            await check_and_process_pending_tasks(agent)
+            
+            # Выполняем периодический мониторинг активных тем
+            await periodic_monitoring(agent)
+            
+            await asyncio.sleep(300)  # Проверяем каждые 5 минут
+
+        except Exception as e:
+            logger.error(f"Ошибка в главном цикле агента: {e}")
+            await asyncio.sleep(60)
 
 
 if __name__ == "__main__":

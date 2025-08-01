@@ -4,7 +4,7 @@
 """
 
 import asyncio
-from agent.ai_agent import main
+from agent.manager import main
 
 if __name__ == "__main__":
     asyncio.run(main())
