@@ -1,5 +1,5 @@
 """
-Настройка логгирования для проекта
+Logging configuration for the project
 """
 
 import logging
@@ -9,48 +9,48 @@ from pathlib import Path
 
 def setup_logger(name: str, log_level: int = logging.INFO) -> logging.Logger:
     """
-    Настройка логгера с записью в файл по дате
+    Configure logger with date-based file logging
 
     Args:
-        name: Имя логера
-        log_level: Уровень логирования
+        name: Logger name
+        log_level: Logging level
 
     Returns:
-        Настроенный логер
+        Configured logger
     """
-    # Создаем папку для логов
+    # Create logs directory
     logs_dir = Path("logs")
     logs_dir.mkdir(exist_ok=True)
 
-    # Имя файла с текущей датой
+    # Filename with current date
     log_filename = f"{datetime.now().strftime('%Y-%m-%d')}.log"
     log_filepath = logs_dir / log_filename
 
-    # Создаем логер
+    # Create logger
     logger = logging.getLogger(name)
     logger.setLevel(log_level)
 
-    # Проверяем, есть ли уже обработчики (избегаем дублирования)
+    # Check if handlers already exist (avoid duplication)
     if logger.handlers:
         return logger
 
-    # Создаем форматтер
+    # Create formatter
     formatter = logging.Formatter(
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
-    # Создаем обработчик для записи в файл
+    # Create file handler
     file_handler = logging.FileHandler(log_filepath, encoding="utf-8")
     file_handler.setLevel(log_level)
     file_handler.setFormatter(formatter)
 
-    # Создаем обработчик для вывода в консоль
+    # Create console handler
     console_handler = logging.StreamHandler()
     console_handler.setLevel(log_level)
     console_handler.setFormatter(formatter)
 
-    # Добавляем обработчики к логеру
+    # Add handlers to logger
     logger.addHandler(file_handler)
     logger.addHandler(console_handler)
 
@@ -59,12 +59,12 @@ def setup_logger(name: str, log_level: int = logging.INFO) -> logging.Logger:
 
 def get_logger(name: str) -> logging.Logger:
     """
-    Получение настроенного логера
+    Get configured logger
 
     Args:
-        name: Имя логера
+        name: Logger name
 
     Returns:
-        Логер
+        Logger
     """
     return setup_logger(name)

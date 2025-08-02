@@ -10,7 +10,6 @@ from peewee import (  # type: ignore
     ForeignKeyField,
     FloatField,
     BooleanField,
-    DoesNotExist,
 )
 from datetime import datetime
 from dotenv import load_dotenv
@@ -52,24 +51,26 @@ class Task(BaseModel):
 
 
 class ResearchTopic(BaseModel):
-    """Исследовательские темы для анализа arXiv"""
+    """Research topics for arXiv analysis"""
+
     id = AutoField()
     user_id = BigIntegerField()
-    target_topic = TextField()  # Целевая тема (что ищем)
-    search_area = TextField()   # Область поиска (где ищем)
+    target_topic = TextField()  # Target topic (what we're looking for)
+    search_area = TextField()  # Search area (where we're looking)
     is_active = BooleanField(default=True)
     created_at = DateTimeField(default=datetime.now)
     updated_at = DateTimeField(default=datetime.now)
 
 
 class ArxivPaper(BaseModel):
-    """Статьи с arXiv"""
+    """Articles from arXiv"""
+
     id = AutoField()
     arxiv_id = CharField(max_length=50, unique=True)
     title = TextField()
-    authors = TextField()  # JSON строка с авторами
+    authors = TextField()  # JSON string with authors
     summary = TextField()
-    categories = TextField()  # JSON строка с категориями
+    categories = TextField()  # JSON string with categories
     published = DateTimeField()
     updated = DateTimeField()
     pdf_url = TextField()
@@ -78,71 +79,94 @@ class ArxivPaper(BaseModel):
     doi = TextField(null=True)
     comment = TextField(null=True)
     primary_category = CharField(max_length=50, null=True)
-    full_text = TextField(null=True)  # Полный текст если удалось извлечь
+    full_text = TextField(null=True)  # Full text if successfully extracted
     created_at = DateTimeField(default=datetime.now)
 
 
 class PaperAnalysis(BaseModel):
-    """Анализ соответствия статьи исследовательским темам"""
+    """Analysis of article relevance to research topics"""
+
     id = AutoField()
     paper = ForeignKeyField(ArxivPaper, backref="analyses")
     topic = ForeignKeyField(ResearchTopic, backref="analyses")
-    
-    # Оценки релевантности (0-100%)
-    search_area_relevance = FloatField()    # Соответствие области поиска
-    target_topic_relevance = FloatField()   # Присутствие целевой темы
-    overall_relevance = FloatField()        # Интегральная оценка
-    
-    # Ключевые фрагменты и обоснования
-    key_fragments = TextField(null=True)    # JSON с цитатами
-    contextual_reasoning = TextField(null=True)  # Обоснование пересечения тем
-    
-    # Краткое резюме
+
+    # Relevance scores (0-100%)
+    search_area_relevance = FloatField()  # Search area relevance
+    target_topic_relevance = FloatField()  # Target topic presence
+    overall_relevance = FloatField()  # Overall score
+
+    # Key fragments and reasoning
+    key_fragments = TextField(null=True)  # JSON with quotes
+    contextual_reasoning = TextField(null=True)  # Topic intersection reasoning
+
+    # Brief summary
     summary = TextField(null=True)
-    innovation_assessment = TextField(null=True)  # Оценка инновационности
-    practical_significance = TextField(null=True)  # Практическая значимость
-    
+    innovation_assessment = TextField(null=True)  # Innovation assessment
+    practical_significance = TextField(null=True)  # Practical significance
+
     status = CharField(max_length=20, default="pending")  # pending, analyzed, sent
     created_at = DateTimeField(default=datetime.now)
     updated_at = DateTimeField(default=datetime.now)
 
 
 class UserSettings(BaseModel):
-    """Настройки пользователя для фильтрации и анализа"""
+    """User settings for filtering and analysis"""
+
     id = AutoField()
     user_id = BigIntegerField(unique=True)
-    
-    # Пороги релевантности
-    min_search_area_relevance = FloatField(default=50.0)    # Минимум для области поиска
-    min_target_topic_relevance = FloatField(default=50.0)   # Минимум для целевой темы
-    min_overall_relevance = FloatField(default=60.0)        # Минимум общей релевантности
-    
-    # Настройки уведомлений
-    instant_notification_threshold = FloatField(default=80.0)  # Мгновенные уведомления
-    daily_digest_threshold = FloatField(default=50.0)          # Дневная сводка
-    weekly_digest_threshold = FloatField(default=30.0)         # Недельный дайджест
-    
-    # Фильтры времени
-    days_back_to_search = CharField(max_length=10, default="7")  # Глубина поиска в днях
-    excluded_categories = TextField(null=True)  # JSON с исключенными категориями arXiv
-    
-    # Состояние мониторинга
+
+    # Relevance thresholds
+    min_search_area_relevance = FloatField(default=50.0)  # Minimum for search area
+    min_target_topic_relevance = FloatField(default=50.0)  # Minimum for target topic
+    min_overall_relevance = FloatField(default=60.0)  # Minimum overall relevance
+
+    # Notification settings
+    instant_notification_threshold = FloatField(default=80.0)  # Instant notifications
+    daily_digest_threshold = FloatField(default=50.0)  # Daily digest
+    weekly_digest_threshold = FloatField(default=30.0)  # Weekly digest
+
+    # Time filters
+    days_back_to_search = CharField(max_length=10, default="7")  # Search depth in days
+    excluded_categories = TextField(null=True)  # JSON with excluded arXiv categories
+
+    # Monitoring status
     monitoring_enabled = BooleanField(default=True)
-    
+
+    created_at = DateTimeField(default=datetime.now)
+    updated_at = DateTimeField(default=datetime.now)
+
+
+class AgentStatus(BaseModel):
+    """Real-time agent status tracking"""
+
+    id = AutoField()
+    agent_id = CharField(max_length=50, default="main_agent")  # Agent identifier
+    status = CharField(max_length=50)  # Current status
+    activity = TextField()  # Current activity description
+    current_user_id = BigIntegerField(null=True)  # User being processed
+    current_topic_id = BigIntegerField(null=True)  # Topic being processed
+    papers_processed = BigIntegerField(default=0)  # Papers processed in current session
+    papers_found = BigIntegerField(default=0)  # Relevant papers found
+    last_activity = DateTimeField(default=datetime.now)
+    session_start = DateTimeField(default=datetime.now)
     created_at = DateTimeField(default=datetime.now)
     updated_at = DateTimeField(default=datetime.now)
 
 
 def init_db():
     db.connect()
-    db.create_tables([
-        Message, 
-        Task, 
-        ResearchTopic, 
-        ArxivPaper, 
-        PaperAnalysis, 
-        UserSettings
-    ], safe=True)
+    db.create_tables(
+        [
+            Message,
+            Task,
+            ResearchTopic,
+            ArxivPaper,
+            PaperAnalysis,
+            UserSettings,
+            AgentStatus,
+        ],
+        safe=True,
+    )
     db.close()
 
 

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Скрипт для запуска только телеграм бота
+Script to start only the Telegram bot
 """
 
 import asyncio
-from bot.telegram_bot import main
+from bot.dispatcher import main
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -1,16 +1,12 @@
 import asyncio
 import os
-import json
 from datetime import datetime, timedelta
-from typing import Dict, Any
 from dotenv import load_dotenv
 import sys
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from shared.database import (
-    db, Task, ResearchTopic, UserSettings, init_db
-)
+from shared.database import db, Task, ResearchTopic, UserSettings, init_db
 from peewee import DoesNotExist
 from shared.logger import get_logger
 from shared.event_system import get_event_bus, Event, task_events
@@ -22,204 +18,238 @@ logger = get_logger(__name__)
 
 
 async def handle_task_creation(event: Event):
-    """Обработчик создания новых задач - обрабатывает задачи по мере поступления"""
+    """Handler for creating new tasks - processes tasks as they arrive"""
     try:
-        task_id = event.data.get("task_id")
-        task_type = event.data.get("task_type")
+        logger.debug(f"handle_task_creation called with event: {event.data}")
+        task_id = event.data.get("task_id") if event.data else None
+        task_type = event.data.get("task_type") if event.data else None
 
         if not task_id:
-            logger.warning(f"Получено событие создания задачи без ID: {event.data}")
+            logger.warning(f"Received task creation event without ID: {event.data}")
             return
 
         logger.info(
-            f"🚀 arXiv АГЕНТ: Получено уведомление о новой задаче {task_id} типа {task_type}"
+            f"🚀 arXiv AGENT: Received notification about new task {task_id} of type {task_type}"
         )
 
-        db.connect()
+        # Check if database is already connected
+        if hasattr(db, 'is_closed') and db.is_closed():
+            db.connect()
+        logger.debug("Database connection established (handle_task_creation)")
 
         try:
-            # Получаем задачу из базы данных
+            # Get task from database
             task = Task.get(Task.id == task_id)
+            logger.debug(f"Task {task_id} retrieved from database")
 
-            if task.status != "pending":
-                logger.info(
-                    f"Задача {task_id} уже обрабатывается (статус: {task.status})"
-                )
-                return
-
-            # Помечаем задачу как обрабатываемую
-            task.status = "processing"
-            task.save()
-
-            # Создаем агента и обрабатываем задачу
+            # Create agent instance
             agent = ArxivAnalysisAgent()
+            logger.debug("ArxivAnalysisAgent instance created")
+
+            # Process the task
+            logger.info(f"🔄 Processing task {task_id} of type {task_type}")
             result = await agent.process_task(task)
+            logger.info(f"✅ Task {task_id} processed successfully")
 
-            # Сохраняем результат
-            task.result = result
+            # Mark task as completed
             task.status = "completed"
+            task.result = result
             task.save()
+            logger.debug(f"Task {task_id} marked as completed")
 
-            # Уведомляем о завершении через систему событий
-            task_events.task_completed(task_id=task.id, result=result)
-
-            logger.info(f"Задача {task_id} успешно завершена: {result}")
+            # Publish task completion event
+            task_events.task_completed(task_id=task_id, result=result)
+            logger.debug(f"Task completion event published for task {task_id}")
 
         except DoesNotExist:
-            logger.error(f"Задача {task_id} не найдена в базе данных")
+            logger.error(f"Task {task_id} not found in database")
         except Exception as e:
-            logger.error(f"Ошибка при обработке задачи {task_id}: {e}")
-            # Помечаем задачу как неудачную
+            logger.error(f"Error processing task {task_id}: {e}")
+            # Mark task as failed
             try:
                 task = Task.get(Task.id == task_id)
                 task.status = "failed"
-                task.result = f"Ошибка: {str(e)}"
+                task.result = str(e)
                 task.save()
-                task_events.task_failed(task_id=task_id, error=str(e))
-            except Exception:
+            except:
                 pass
 
-        db.close()
+        # Don't close connection here - let the caller manage it
 
     except Exception as e:
-        logger.error(f"Критическая ошибка в обработчике создания задач: {e}")
+        logger.error(f"Error in handle_task_creation: {e}")
+        # Don't close connection in exception handler either
 
 
 async def check_and_process_pending_tasks(agent: ArxivAnalysisAgent):
-    """Проверка и обработка необработанных задач"""
+    """Check for unprocessed tasks and process them"""
     try:
-        db.connect()
+        # Check if database is already connected
+        if hasattr(db, 'is_closed') and db.is_closed():
+            db.connect()
 
-        # Ищем необработанные задачи
+        # Get all pending tasks
         pending_tasks = Task.select().where(Task.status == "pending")
+        task_count = pending_tasks.count()
 
-        if pending_tasks.count() > 0:
-            logger.info(
-                f"🔍 Найдено {pending_tasks.count()} необработанных задач, обрабатываем..."
-            )
+        if task_count > 0:
+            logger.info(f"🔍 Found {task_count} unprocessed tasks, processing...")
 
             for task in pending_tasks:
                 try:
-                    logger.info(f"🔄 Обрабатываем пропущенную задачу {task.id} типа {task.task_type}")
+                    logger.info(f"🔄 Processing missed task {task.id} of type {task.task_type}")
 
-                    # Помечаем как обрабатываемую
-                    task.status = "processing"
-                    task.save()
-
-                    # Обрабатываем
+                    # Process the task
                     result = await agent.process_task(task)
 
-                    # Сохраняем результат
-                    task.result = result
+                    # Mark as completed
                     task.status = "completed"
+                    task.result = result
                     task.save()
 
-                    # Уведомляем о завершении
+                    # Notify completion
                     task_events.task_completed(task_id=task.id, result=result)
 
-                    logger.info(f"✅ Пропущенная задача {task.id} успешно обработана")
+                    logger.info(f"✅ Missed task {task.id} successfully processed")
 
                 except Exception as e:
-                    logger.error(f"❌ Ошибка при обработке задачи {task.id}: {e}")
+                    logger.error(f"Error processing missed task {task.id}: {e}")
                     task.status = "failed"
-                    task.result = f"Ошибка: {str(e)}"
+                    task.result = str(e)
                     task.save()
 
-        db.close()
+        # Don't close connection here - let the caller manage it
 
     except Exception as e:
-        logger.error(f"Ошибка при проверке необработанных задач: {e}")
+        logger.error(f"Error checking unprocessed tasks: {e}")
+        # Don't close connection in exception handler either
 
 
 async def periodic_monitoring(agent: ArxivAnalysisAgent):
-    """Периодический мониторинг активных исследовательских тем"""
+    """Periodic monitoring of active research topics"""
     try:
-        db.connect()
-        
-        # Получаем все активные темы
+        # Check if database is already connected
+        if hasattr(db, 'is_closed') and db.is_closed():
+            db.connect()
+        logger.debug("Database connection established (periodic_monitoring)")
+
+        # Get all active topics
         active_topics = ResearchTopic.select().where(ResearchTopic.is_active)
-        
+        topic_count = active_topics.count()
+        logger.debug(f"Found {topic_count} active research topics for monitoring")
+
+        agent.update_status(
+            "periodic_monitoring",
+            f"Периодический мониторинг {topic_count} активных топиков",
+        )
+
         for topic in active_topics:
             try:
-                # Проверяем, включен ли мониторинг для пользователя
+                # Check if monitoring is enabled for user
                 try:
                     settings = UserSettings.get(UserSettings.user_id == topic.user_id)
+                    logger.debug(f"UserSettings for user {topic.user_id} retrieved")
                     if not settings.monitoring_enabled:
+                        logger.debug(f"Monitoring disabled for user {topic.user_id}")
                         continue
                 except DoesNotExist:
+                    logger.debug(
+                        f"UserSettings for user {topic.user_id} not found, skipping"
+                    )
                     continue
-                
-                # Проверяем, когда последний раз мониторили эту тему
+
+                # Check when this topic was last monitored
                 user_monitoring = agent.monitoring_active.get(topic.user_id)
                 if user_monitoring:
-                    last_check = user_monitoring.get("last_check", datetime.now() - timedelta(hours=1))
+                    last_check = user_monitoring.get(
+                        "last_check", datetime.now() - timedelta(hours=1)
+                    )
                     if datetime.now() - last_check < timedelta(minutes=30):
-                        continue  # Слишком рано для повторной проверки
-                
-                logger.info(f"Периодический мониторинг темы {topic.id} для пользователя {topic.user_id}")
-                
-                # Выполняем поиск новых статей
-                await agent.perform_arxiv_search(
-                    topic.user_id, 
-                    topic.target_topic, 
-                    topic.search_area, 
-                    topic.id
+                        logger.debug(
+                            f"Topic {topic.id} for user {topic.user_id} was recently checked, skipping"
+                        )
+                        continue  # Too early for re-check
+
+                logger.info(
+                    f"Periodic monitoring of topic {topic.id} for user {topic.user_id}"
                 )
-                
-                # Обновляем время последней проверки
+
+                # Perform search for new articles
+                await agent.perform_arxiv_search(
+                    topic.user_id, topic.target_topic, topic.search_area, topic.id
+                )
+                logger.debug(f"Search for new articles completed for topic {topic.id}")
+
+                # Update last check time
                 if topic.user_id in agent.monitoring_active:
-                    agent.monitoring_active[topic.user_id]["last_check"] = datetime.now()
-                
+                    agent.monitoring_active[topic.user_id]["last_check"] = (
+                        datetime.now()
+                    )
+                    logger.debug(f"Last check time updated for user {topic.user_id}")
+
             except Exception as e:
-                logger.error(f"Ошибка при мониторинге темы {topic.id}: {e}")
-        
-        db.close()
-        
+                logger.error(f"Error monitoring topic {topic.id}: {e}")
+
+        # Don't close connection here - let the caller manage it
+        logger.debug("Database connection maintained (periodic_monitoring)")
+
     except Exception as e:
-        logger.error(f"Ошибка при периодическом мониторинге: {e}")
-        db.close()
+        logger.error(f"Error in periodic monitoring: {e}")
+        # Don't close connection in exception handler either
 
 
 async def main():
-    """Основной цикл arXiv анализа агента"""
-    logger.info("Запуск arXiv анализа агента...")
+    """Main loop of arXiv analysis agent"""
+    logger.info("Starting arXiv analysis agent...")
 
     init_db()
+    logger.debug("Database initialization completed")
     agent = ArxivAnalysisAgent()
+    logger.debug("ArxivAnalysisAgent initialized")
 
-    # Подписываемся на события для новых задач
+    # Set initial status
+    agent.update_status("starting", "Запуск агента анализа arXiv")
+
+    # Subscribe to events for new tasks
     event_bus = get_event_bus()
+    logger.debug("Event bus instance obtained")
     task_events.subscribe_to_creations(handle_task_creation)
+    logger.debug("Subscription to task creation events completed")
 
-    logger.info("arXiv агент готов к работе!")
-    logger.info("- Мониторинг arXiv статей")
-    logger.info("- Двухэтапный анализ тем")
-    logger.info("- Автоматические отчеты")
-
-    # Запускаем обработку событий в фоне
+    # Start event processing in background
     asyncio.create_task(event_bus.start_processing(poll_interval=0.5))
+    logger.debug("Background event processing started")
 
-    # Основной цикл - периодический мониторинг активных тем
+    # Main loop - periodic monitoring of active topics
+    agent.update_status("running", "Агент запущен и готов к работе")
+
     while True:
         try:
-            # Проверяем необработанные задачи
+            logger.debug("Starting main agent loop iteration")
+            agent.update_status("checking_tasks", "Проверка необработанных задач")
+
+            # Check unprocessed tasks
             await check_and_process_pending_tasks(agent)
-            
-            # Выполняем периодический мониторинг активных тем
+
+            # Perform periodic monitoring of active topics
             await periodic_monitoring(agent)
-            
-            await asyncio.sleep(300)  # Проверяем каждые 5 минут
+
+            agent.update_status(
+                "idle", "Ожидание следующего цикла мониторинга (5 минут)"
+            )
+            logger.debug("Main loop iteration completed, sleeping for 5 minutes")
+            await asyncio.sleep(300)  # Check every 5 minutes
 
         except Exception as e:
-            logger.error(f"Ошибка в главном цикле агента: {e}")
-            await asyncio.sleep(60)
+            logger.error(f"Error in main agent loop: {e}")
 
 
 if __name__ == "__main__":
     try:
+        logger.info("AI agent starting as main process")
         asyncio.run(main())
     except KeyboardInterrupt:
-        logger.info("ИИ агент остановлен пользователем")
+        logger.info("AI agent stopped by user")
     except Exception as e:
-        logger.error(f"Критическая ошибка ИИ агента: {e}")
+        logger.error(f"Critical AI agent error: {e}")
         raise

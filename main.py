@@ -7,56 +7,56 @@ from shared.database import init_db
 
 
 def run_bot():
-    """Запускает телеграм бота"""
-    subprocess.run([sys.executable, "bot/telegram_bot.py"])
+    """Starts the Telegram bot"""
+    subprocess.run([sys.executable, "start_bot.py"])
 
 
 def run_agent():
-    """Запускает ИИ агента"""
-    subprocess.run([sys.executable, "agent/main.py"])
+    """Starts the AI agent"""
+    subprocess.run([sys.executable, "start_agent.py"])
 
 
 def signal_handler(sig, frame):
-    """Обработчик сигнала для корректного завершения"""
-    print("\nЗавершение работы сервисов...")
+    """Signal handler for graceful shutdown"""
+    print("\nShutting down services...")
     sys.exit(0)
 
 
 async def main():
-    """Основная функция запуска всех сервисов"""
-    print("Инициализация базы данных...")
+    """Main function to start all services"""
+    print("Initializing database...")
     init_db()
-    print("База данных инициализирована!")
+    print("Database initialized!")
 
-    print("Запуск сервисов...")
+    print("Starting services...")
 
-    # Устанавливаем обработчик сигнала
+    # Set up signal handler
     signal.signal(signal.SIGINT, signal_handler)
 
-    # Запускаем процессы
+    # Start processes
     bot_process = Process(target=run_bot)
     agent_process = Process(target=run_agent)
 
     try:
         bot_process.start()
-        print("Телеграм бот запущен")
+        print("Telegram bot started")
 
         agent_process.start()
-        print("ИИ агент запущен")
+        print("AI agent started")
 
-        print("Все сервисы запущены! Нажмите Ctrl+C для завершения.")
+        print("All services started! Press Ctrl+C to stop.")
 
-        # Ожидаем завершения процессов
+        # Wait for processes to finish
         bot_process.join()
         agent_process.join()
 
     except KeyboardInterrupt:
-        print("\nЗавершение работы сервисов...")
+        print("\nShutting down services...")
         bot_process.terminate()
         agent_process.terminate()
         bot_process.join()
         agent_process.join()
-        print("Все сервисы остановлены.")
+        print("All services stopped.")
 
 
 if __name__ == "__main__":

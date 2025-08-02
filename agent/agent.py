@@ -1,21 +1,25 @@
-import asyncio
 import os
 import json
 import re
 from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Any
+from typing import Dict, Any, Optional
 from dotenv import load_dotenv
 import sys
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from shared.database import (
-    db, Task, ResearchTopic, UserSettings, ArxivPaper, PaperAnalysis, init_db
+    db,
+    Task,
+    UserSettings,
+    ArxivPaper,
+    PaperAnalysis,
+    AgentStatus,
 )
 from peewee import DoesNotExist
 from shared.llm import AGENT_MODEL
 from shared.logger import get_logger
-from shared.event_system import get_event_bus, Event, task_events
+from shared.event_system import task_events
 from shared.arxiv_parser import ArxivParser, ArxivPaper as ArxivPaperData
 from agents import Agent, Runner
 
@@ -25,194 +29,292 @@ logger = get_logger(__name__)
 
 
 class ArxivAnalysisAgent:
-    """ИИ-агент для анализа научных статей arXiv"""
-    
+    """AI agent for analyzing arXiv scientific articles"""
+
     def __init__(self):
-        # Создаем агента для анализа области поиска
+        logger.debug("Initializing ArxivAnalysisAgent")
+        # Create agent for search area analysis
         self.area_analyzer = Agent(
             name="Area Relevance Analyzer",
             model=AGENT_MODEL,
             instructions="""
-Ты эксперт по анализу научных статей. Твоя задача - определить, насколько статья относится к указанной научной области.
+You are an expert in analyzing scientific articles. Your task is to determine how relevant an article is to the specified scientific field.
 
-Анализируй:
-1. Заголовок статьи
-2. Аннотацию (abstract)
-3. Категории arXiv
-4. Ключевые слова
+Analyze:
+1. The article title
+2. The abstract
+3. arXiv categories
+4. Keywords
 
-Оцени релевантность от 0 до 100%, где:
-- 90-100%: статья полностью относится к области
-- 70-89%: статья в основном относится к области
-- 50-69%: статья частично относится к области  
-- 30-49%: статья слабо связана с областью
-- 0-29%: статья не относится к области
+Assess the relevance from 0 to 100%, where:
+- 90-100%: the article fully belongs to the field
+- 70-89%: the article mostly belongs to the field
+- 50-69%: the article is partially related to the field
+- 30-49%: the article is weakly related to the field
+- 0-29%: the article does not belong to the field
 
-Ответь ТОЛЬКО числом (процентами) без дополнительного текста.
+Reply ONLY with a number (percentage), no additional text.
             """,
         )
-        
-        # Создаем агента для анализа целевой темы
+
+        # Create agent for target topic analysis
         self.topic_analyzer = Agent(
-            name="Target Topic Analyzer", 
+            name="Target Topic Analyzer",
             model=AGENT_MODEL,
             instructions="""
-Ты эксперт по поиску специфических тем в научных статьях. Твоя задача - найти упоминания и применения целевой темы в тексте.
+You are an expert in identifying specific topics in scientific articles. Your task is to find mentions and applications of the target topic in the text.
 
-Анализируй:
-1. Прямые упоминания темы
-2. Синонимы и связанные термины
-3. Методы и техники
-4. Практическое применение
+Analyze:
+1. Direct mentions of the topic
+2. Synonyms and related terms
+3. Methods and techniques
+4. Practical applications
 
-Оцени присутствие темы от 0 до 100%, где:
-- 90-100%: тема является центральной в статье
-- 70-89%: тема активно используется/обсуждается
-- 50-69%: тема упоминается и применяется
-- 30-49%: тема упоминается, но не является основной
-- 0-29%: тема не упоминается или упоминается вскользь
+Assess the presence of the topic from 0 to 100%, where:
+- 90-100%: the topic is central to the article
+- 70-89%: the topic is actively used/discussed
+- 50-69%: the topic is mentioned and applied
+- 30-49%: the topic is mentioned but not central
+- 0-29%: the topic is not mentioned or only briefly mentioned
 
-Ответь ТОЛЬКО числом (процентами) без дополнительного текста.
+Reply ONLY with a number (percentage), no additional text.
             """,
         )
-        
-        # Создаем агента для генерации отчетов
+
+        # Create agent for report generation
         self.report_generator = Agent(
             name="Analysis Report Generator",
             model=AGENT_MODEL,
             instructions="""
-Ты создаешь краткие аналитические отчеты о пересечении научных тем.
+You create concise analytical reports on the intersection of scientific topics.
 
-Сгенерируй краткий отчет (2-3 предложения) о том:
-1. Как именно целевая тема применяется в контексте области поиска
-2. Инновационность подхода
-3. Практическая значимость
+Generate a brief report (2-3 sentences) about:
+1. How exactly the target topic is applied in the context of the search area
+2. The innovativeness of the approach
+3. Practical significance
 
-Используй профессиональный научный стиль, будь конкретным и информативным.
+Use a professional scientific style, be specific and informative.
             """,
         )
-        
+
         self.arxiv_parser = ArxivParser()
-        self.monitoring_active = {}  # Отслеживание активных мониторингов по пользователям
+        self.monitoring_active = {}  # Tracking active monitoring by users
+        self.agent_id = "main_agent"
+        self.papers_processed_session = 0
+        self.papers_found_session = 0
+        logger.debug("ArxivAnalysisAgent successfully initialized")
 
     async def process_task(self, task: Task) -> str:
-        """Обрабатывает задачи разных типов"""
+        """Processes different types of tasks"""
         try:
-            logger.info(f"Начинаю обработку задачи {task.id} типа {task.task_type}")
-            
+            logger.info(f"Starting to process task {task.id} of type {task.task_type}")
+
             task_data = json.loads(str(task.data)) if task.data else {}
-            
+            logger.debug(f"Task data: {task_data}")
+
             if task.task_type == "start_monitoring":
+                logger.debug("Task type: start_monitoring")
                 return await self.start_monitoring(task_data)
             elif task.task_type == "restart_monitoring":
+                logger.debug("Task type: restart_monitoring")
                 return await self.restart_monitoring(task_data)
             else:
-                return f"Неизвестный тип задачи: {task.task_type}"
-                
+                logger.warning(f"Unknown task type: {task.task_type}")
+                return f"Unknown task type: {task.task_type}"
+
         except Exception as e:
-            error_msg = f"Ошибка обработки: {str(e)}"
-            logger.error(f"Ошибка при обработке задачи {task.id}: {e}")
+            error_msg = f"Processing error: {str(e)}"
+            logger.error(f"Error processing task {task.id}: {e}")
             return error_msg
 
     async def start_monitoring(self, task_data: Dict[str, Any]) -> str:
-        """Запускает мониторинг arXiv для указанных тем"""
+        """Starts arXiv monitoring for specified topics"""
         try:
+            logger.debug(f"Input data for start_monitoring: {task_data}")
             user_id = task_data.get("user_id")
             topic_id = task_data.get("topic_id")
             target_topic = task_data.get("target_topic")
             search_area = task_data.get("search_area")
-            
+
             if not all([user_id, topic_id, target_topic, search_area]):
-                return "Ошибка: неполные данные для запуска мониторинга"
-            
-            logger.info(f"Запуск мониторинга для пользователя {user_id}: '{target_topic}' в '{search_area}'")
-            
-            # Помечаем мониторинг как активный
+                logger.error("Error: incomplete data for starting monitoring")
+                return "Error: incomplete data for starting monitoring"
+
+            self.update_status(
+                "starting_monitoring",
+                f"Запуск мониторинга для пользователя {user_id}: '{target_topic}' в области '{search_area}'",
+                user_id,
+                topic_id,
+            )
+
+            logger.info(
+                f"Starting monitoring for user {user_id}: '{target_topic}' in '{search_area}'"
+            )
+
+            # Mark monitoring as active
             self.monitoring_active[user_id] = {
                 "topic_id": topic_id,
                 "target_topic": target_topic,
                 "search_area": search_area,
-                "last_check": datetime.now()
+                "last_check": datetime.now(),
             }
-            
-            # Запускаем начальный поиск статей
-            if isinstance(user_id, int) and isinstance(target_topic, str) and isinstance(search_area, str) and isinstance(topic_id, int):
-                await self.perform_arxiv_search(user_id, target_topic, search_area, topic_id)
+            logger.debug(
+                f"monitoring_active[{user_id}] = {self.monitoring_active[user_id]}"
+            )
+
+            # Start initial article search
+            if (
+                isinstance(user_id, int)
+                and isinstance(target_topic, str)
+                and isinstance(search_area, str)
+                and isinstance(topic_id, int)
+            ):
+                logger.debug(
+                    "Parameters for perform_arxiv_search are valid, starting search"
+                )
+                await self.perform_arxiv_search(
+                    user_id, target_topic, search_area, topic_id
+                )
             else:
-                logger.error(f"Неверные типы параметров для perform_arxiv_search: {type(user_id)}, {type(target_topic)}, {type(search_area)}, {type(topic_id)}")
-                return "Ошибка: неверные типы параметров"
-            
-            return f"Мониторинг запущен для тем: '{target_topic}' в области '{search_area}'"
-            
+                logger.error(
+                    f"Invalid parameter types for perform_arxiv_search: {type(user_id)}, {type(target_topic)}, {type(search_area)}, {type(topic_id)}"
+                )
+                return "Error: invalid parameter types"
+
+            logger.info(
+                f"Monitoring successfully started for topics: '{target_topic}' in area '{search_area}'"
+            )
+            return f"Monitoring started for topics: '{target_topic}' in area '{search_area}'"
+
         except Exception as e:
-            logger.error(f"Ошибка при запуске мониторинга: {e}")
-            return f"Ошибка при запуске мониторинга: {e}"
+            logger.error(f"Error starting monitoring: {e}")
+            return f"Error starting monitoring: {e}"
 
     async def restart_monitoring(self, task_data: Dict[str, Any]) -> str:
-        """Перезапускает мониторинг с новыми параметрами"""
-        # Останавливаем старый мониторинг
+        """Restarts monitoring with new parameters"""
+        logger.debug(f"Restarting monitoring with data: {task_data}")
+        # Stop old monitoring
         user_id = task_data.get("user_id")
         if user_id in self.monitoring_active:
+            logger.info(f"Stopping old monitoring for user {user_id}")
             del self.monitoring_active[user_id]
-            
-        # Запускаем новый
+
+        # Start new monitoring
+        logger.info(f"Starting new monitoring for user {user_id}")
         return await self.start_monitoring(task_data)
 
-    async def perform_arxiv_search(self, user_id: int, target_topic: str, search_area: str, topic_id: int):
-        """Выполняет поиск статей на arXiv и анализирует их"""
+    async def perform_arxiv_search(
+        self, user_id: int, target_topic: str, search_area: str, topic_id: int
+    ):
+        """Performs arXiv search and analyzes articles"""
         try:
-            db.connect()
-            
-            # Получаем настройки пользователя
+            self.update_status(
+                "searching_papers",
+                f"Поиск статей по теме '{target_topic}' в области '{search_area}' для пользователя {user_id}",
+                user_id,
+                topic_id,
+            )
+
+            logger.debug(f"Checking database connection for user {user_id}")
+            # Check if database is already connected
+            if hasattr(db, "is_closed") and db.is_closed():
+                db.connect()
+
+            # Get user settings
             try:
                 settings = UserSettings.get(UserSettings.user_id == user_id)
                 days_back = int(settings.days_back_to_search)
+                logger.debug(
+                    f"User {user_id} settings: days_back_to_search={days_back}"
+                )
             except (DoesNotExist, ValueError):
                 days_back = 7
-            
-            # Этап 1: Поиск по области поиска
-            logger.info(f"Этап 1: Поиск статей в области '{search_area}'")
-            
-            date_from = datetime.now() - timedelta(days=days_back)
+                logger.warning(
+                    f"Failed to get user {user_id} settings, using days_back=7"
+                )
+
+            # Stage 1: Search by search area
+            logger.info(f"Stage 1: Searching articles in area '{search_area}'")
+
+            # Remove date filter to ensure we find articles
+            # date_from = datetime.now() - timedelta(days=days_back)
+            # logger.debug(f"Search start date: {date_from}")
             papers = self.arxiv_parser.search_papers(
                 query=search_area,
-                max_results=20,
-                date_from=date_from
+                max_results=20,  # Removed date_from parameter
             )
-            
-            logger.info(f"Найдено {len(papers)} статей в области '{search_area}'")
-            
-            # Этап 2: Анализ каждой статьи на предмет целевой темы
-            for paper in papers:
-                await self.analyze_single_paper(paper, user_id, topic_id, target_topic, search_area)
-                
-            db.close()
-            
-        except Exception as e:
-            logger.error(f"Ошибка при поиске arXiv: {e}")
-            db.close()
 
-    async def analyze_single_paper(self, paper_data: ArxivPaperData, user_id: int, topic_id: int, 
-                                 target_topic: str, search_area: str):
-        """Анализирует одну статью на соответствие темам"""
+            logger.info(f"Found {len(papers)} articles in area '{search_area}'")
+
+            self.update_status(
+                "analyzing_papers",
+                f"Анализ {len(papers)} статей для пользователя {user_id}",
+                user_id,
+                topic_id,
+            )
+
+            # Stage 2: Analyze each article for target topic
+            for idx, paper in enumerate(papers):
+                logger.debug(
+                    f"Analyzing article {idx+1}/{len(papers)}: {getattr(paper, 'id', 'unknown id')}"
+                )
+                self.update_status(
+                    "analyzing_paper",
+                    f"Анализ статьи {idx+1}/{len(papers)}: {getattr(paper, 'title', 'unknown title')[:50]}...",
+                    user_id,
+                    topic_id,
+                )
+                await self.analyze_single_paper(
+                    paper, user_id, topic_id, target_topic, search_area
+                )
+
+            logger.debug(
+                "Database connection maintained after search and article analysis"
+            )
+            # Don't close connection here - let the caller manage it
+
+        except Exception as e:
+            logger.error(f"Error in arXiv search: {e}")
+            # Don't close connection in exception handler either
+
+    async def analyze_single_paper(
+        self,
+        paper_data: ArxivPaperData,
+        user_id: int,
+        topic_id: int,
+        target_topic: str,
+        search_area: str,
+    ):
+        """Analyzes a single article for topic relevance"""
         try:
-            # Проверяем, не анализировали ли уже эту статью
+            self.increment_papers_processed()
+            logger.debug(
+                f"Starting analysis of article {paper_data.id} for user {user_id}, topic_id={topic_id}"
+            )
+            # Check if we've already analyzed this article
             try:
                 existing_paper = ArxivPaper.get(ArxivPaper.arxiv_id == paper_data.id)
-                
-                # Проверяем, есть ли уже анализ для этой темы
+                logger.debug(f"Article {paper_data.id} already exists in database")
+
+                # Check if there's already an analysis for this topic
                 try:
-                    existing_analysis = PaperAnalysis.get(
+                    PaperAnalysis.get(
                         PaperAnalysis.paper == existing_paper.id,
-                        PaperAnalysis.topic == topic_id
+                        PaperAnalysis.topic == topic_id,
                     )
-                    logger.info(f"Статья {paper_data.id} уже проанализирована для темы {topic_id}")
+                    logger.info(
+                        f"Article {paper_data.id} already analyzed for topic {topic_id}"
+                    )
                     return
                 except DoesNotExist:
+                    logger.debug(
+                        f"No analysis yet for article {paper_data.id} and topic {topic_id}"
+                    )
                     paper = existing_paper
-                    
+
             except DoesNotExist:
-                # Сохраняем новую статью в БД
+                # Save new article to database
+                logger.info(f"Saving new article {paper_data.id} to database")
                 paper = ArxivPaper.create(
                     arxiv_id=paper_data.id,
                     title=paper_data.title,
@@ -226,73 +328,114 @@ class ArxivAnalysisAgent:
                     journal_ref=paper_data.journal_ref,
                     doi=paper_data.doi,
                     comment=paper_data.comment,
-                    primary_category=paper_data.primary_category
+                    primary_category=paper_data.primary_category,
                 )
-                logger.info(f"Сохранена новая статья: {paper_data.title}")
-            
-            # Подготавливаем данные для анализа
+                logger.info(f"New article saved: {paper_data.title}")
+
+            # Prepare data for analysis
             paper_content = f"""
-Заголовок: {paper_data.title}
+Title: {paper_data.title}
 
-Авторы: {', '.join(paper_data.authors)}
+Authors: {', '.join(paper_data.authors)}
 
-Аннотация: {paper_data.summary}
+Abstract: {paper_data.summary}
 
-Категории: {', '.join(paper_data.categories)}
+Categories: {', '.join(paper_data.categories)}
 
-Основная категория: {paper_data.primary_category or 'Не указана'}
+Primary category: {paper_data.primary_category or 'Not specified'}
             """
-            
-            # Анализ релевантности области поиска
-            area_query = f"Область поиска: {search_area}\n\nСтатья:\n{paper_content}"
+            logger.debug(f"Content prepared for analysis of article {paper_data.id}")
+
+            # Analyze search area relevance
+            area_query = f"Search area: {search_area}\n\nArticle:\n{paper_content}"
+            logger.debug(f"Sending area_analyzer request for article {paper_data.id}")
             area_result = await Runner.run(self.area_analyzer, area_query)
-            area_relevance = self._extract_percentage(str(area_result.final_output) if area_result.final_output else "0")
-            
-            # Анализ присутствия целевой темы
-            topic_query = f"Целевая тема: {target_topic}\n\nСтатья:\n{paper_content}"
+            logger.debug(f"area_analyzer result: {area_result.final_output}")
+            logger.info(
+                f"AI response (area_analyzer) for article {paper_data.id}: {area_result.final_output}"
+            )
+            area_relevance = self._extract_percentage(
+                str(area_result.final_output) if area_result.final_output else "0"
+            )
+
+            # Analyze target topic presence
+            topic_query = f"Target topic: {target_topic}\n\nArticle:\n{paper_content}"
+            logger.debug(f"Sending topic_analyzer request for article {paper_data.id}")
             topic_result = await Runner.run(self.topic_analyzer, topic_query)
-            topic_relevance = self._extract_percentage(str(topic_result.final_output) if topic_result.final_output else "0")
-            
-            # Вычисляем интегральную оценку
-            overall_relevance = (area_relevance * 0.4 + topic_relevance * 0.6)
-            
-            logger.info(f"Анализ {paper_data.id}: область={area_relevance}%, тема={topic_relevance}%, общая={overall_relevance}%")
-            
-            # Проверяем, достаточно ли релевантна статья
+            logger.debug(f"topic_analyzer result: {topic_result.final_output}")
+            logger.info(
+                f"AI response (topic_analyzer) for article {paper_data.id}: {topic_result.final_output}"
+            )
+            topic_relevance = self._extract_percentage(
+                str(topic_result.final_output) if topic_result.final_output else "0"
+            )
+
+            # Calculate overall relevance score
+            overall_relevance = area_relevance * 0.4 + topic_relevance * 0.6
+
+            logger.info(
+                f"Analysis {paper_data.id}: area={area_relevance}%, topic={topic_relevance}%, overall={overall_relevance}%"
+            )
+
+            # Check if article is relevant enough
             try:
                 settings = UserSettings.get(UserSettings.user_id == user_id)
                 min_overall = settings.min_overall_relevance
                 min_area = settings.min_search_area_relevance
                 min_topic = settings.min_target_topic_relevance
+                logger.debug(
+                    f"Threshold values: min_overall={min_overall}, min_area={min_area}, min_topic={min_topic}"
+                )
             except DoesNotExist:
                 min_overall = 60.0
                 min_area = 50.0
                 min_topic = 50.0
-            
-            if (overall_relevance >= min_overall and 
-                area_relevance >= min_area and 
-                topic_relevance >= min_topic):
-                
-                # Генерируем подробный отчет
+                logger.warning(
+                    f"Failed to get user {user_id} settings, using default values"
+                )
+
+            if (
+                overall_relevance >= min_overall
+                and area_relevance >= min_area
+                and topic_relevance >= min_topic
+            ):
+                logger.info(
+                    f"Article {paper_data.id} meets all relevance criteria, generating report"
+                )
+                # Generate detailed report
                 report_query = f"""
-Целевая тема: {target_topic}
-Область поиска: {search_area}
-Статья: {paper_data.title}
+Target topic: {target_topic}
+Search area: {search_area}
+Article: {paper_data.title}
 
-Аннотация: {paper_data.summary}
+Abstract: {paper_data.summary}
 
-Оценки релевантности:
-- Область поиска: {area_relevance}%
-- Целевая тема: {topic_relevance}%
-- Общая оценка: {overall_relevance:.1f}%
+Relevance scores:
+- Search area: {area_relevance}%
+- Target topic: {topic_relevance}%
+- Overall score: {overall_relevance:.1f}%
 
-Создай краткий отчет о пересечении тем.
+Create a brief report on topic intersection.
                 """
-                
+
+                logger.debug(
+                    f"Sending report_generator request for article {paper_data.id}"
+                )
                 report_result = await Runner.run(self.report_generator, report_query)
-                summary = str(report_result.final_output) if report_result.final_output else "Краткий анализ недоступен"
-                
-                # Сохраняем анализ
+                logger.debug(f"report_generator result: {report_result.final_output}")
+                logger.info(
+                    f"AI response (report_generator) for article {paper_data.id}: {report_result.final_output}"
+                )
+                summary = (
+                    str(report_result.final_output)
+                    if report_result.final_output
+                    else "Brief analysis unavailable"
+                )
+
+                # Save analysis
+                logger.info(
+                    f"Saving analysis for article {paper_data.id} and topic {topic_id}"
+                )
                 analysis = PaperAnalysis.create(
                     paper=paper.id,
                     topic=topic_id,
@@ -300,52 +443,128 @@ class ArxivAnalysisAgent:
                     target_topic_relevance=topic_relevance,
                     overall_relevance=overall_relevance,
                     summary=summary,
-                    status="analyzed"
+                    status="analyzed",
                 )
-                
-                logger.info(f"Создан анализ {analysis.id} для релевантной статьи {paper_data.id}")
-                
-                # Отправляем уведомление пользователю
-                await self._send_analysis_notification(user_id, analysis.id, overall_relevance, settings)
-                
-        except Exception as e:
-            logger.error(f"Ошибка при анализе статьи {paper_data.id}: {e}")
 
-    async def _send_analysis_notification(self, user_id: int, analysis_id: int, relevance: float, settings: UserSettings):
-        """Отправляет уведомление о найденной релевантной статье"""
+                self.increment_papers_found()
+
+                logger.info(
+                    f"Created analysis {analysis.id} for relevant article {paper_data.id}"
+                )
+
+                # Send notification to user
+                await self._send_analysis_notification(
+                    user_id, analysis.id, overall_relevance, settings
+                )
+            else:
+                logger.info(
+                    f"Article {paper_data.id} did not meet relevance threshold: overall={overall_relevance}, area={area_relevance}, topic={topic_relevance}"
+                )
+
+        except Exception as e:
+            logger.error(f"Error analyzing article {paper_data.id}: {e}")
+
+    async def _send_analysis_notification(
+        self, user_id: int, analysis_id: int, relevance: float, settings: UserSettings
+    ):
+        """Sends notification about found relevant article"""
         try:
-            # Определяем тип уведомления
+            logger.debug(
+                f"Checking need for instant notification for user {user_id}, relevance={relevance}, threshold={settings.instant_notification_threshold}"
+            )
+            # Determine notification type
             if relevance >= settings.instant_notification_threshold:  # type: ignore
-                # Мгновенное уведомление
+                # Instant notification
+                logger.info(
+                    f"Creating task for instant notification for user {user_id}"
+                )
                 task = Task.create(
                     task_type="analysis_complete",
-                    data=json.dumps({
-                        "user_id": user_id,
-                        "analysis_id": analysis_id,
-                        "task_type": "analysis_complete"
-                    }),
-                    status="pending"
+                    data=json.dumps(
+                        {
+                            "user_id": user_id,
+                            "analysis_id": analysis_id,
+                            "task_type": "analysis_complete",
+                        }
+                    ),
+                    status="pending",
                 )
-                
+
+                logger.debug(f"Executing task_completed event for task {task.id}")
                 task_events.task_completed(
-                    task_id=task.id,
-                    result=f"analysis_complete:{analysis_id}"
+                    task_id=task.id, result=f"analysis_complete:{analysis_id}"
                 )
-                
-                logger.info(f"Отправлено мгновенное уведомление пользователю {user_id}")
-                
+
+                logger.info(f"Instant notification sent to user {user_id}")
+
         except Exception as e:
-            logger.error(f"Ошибка при отправке уведомления: {e}")
+            logger.error(f"Error sending notification: {e}")
+
+    def update_status(
+        self,
+        status: str,
+        activity: str,
+        user_id: Optional[int] = None,
+        topic_id: Optional[int] = None,
+    ):
+        """Update agent status in database"""
+        try:
+            # Check if database is already connected
+            if hasattr(db, "is_closed") and db.is_closed():
+                db.connect()
+
+            # Get or create agent status record
+            agent_status, created = AgentStatus.get_or_create(
+                agent_id=self.agent_id,
+                defaults={
+                    "status": status,
+                    "activity": activity,
+                    "current_user_id": user_id,
+                    "current_topic_id": topic_id,
+                    "papers_processed": self.papers_processed_session,
+                    "papers_found": self.papers_found_session,
+                    "session_start": datetime.now(),
+                },
+            )
+
+            if not created:
+                agent_status.status = status
+                agent_status.activity = activity
+                agent_status.current_user_id = user_id
+                agent_status.current_topic_id = topic_id
+                agent_status.papers_processed = self.papers_processed_session
+                agent_status.papers_found = self.papers_found_session
+                agent_status.last_activity = datetime.now()
+                agent_status.updated_at = datetime.now()
+                agent_status.save()
+
+            logger.debug(f"Agent status updated: {status} - {activity}")
+
+            # Don't close connection here - let the caller manage it
+        except Exception as e:
+            logger.error(f"Error updating agent status: {e}")
+            # Don't close connection in exception handler either
+
+    def increment_papers_processed(self):
+        """Increment processed papers counter"""
+        self.papers_processed_session += 1
+
+    def increment_papers_found(self):
+        """Increment found papers counter"""
+        self.papers_found_session += 1
 
     def _extract_percentage(self, text: str) -> float:
-        """Извлекает процент из текста ответа ИИ"""
+        """Extracts percentage from AI response text"""
         try:
-            # Ищем число followed by %
-            match = re.search(r'(\d+(?:\.\d+)?)\s*%?', text.strip())
+            logger.debug(f"Extracting percentage from text: '{text}'")
+            # Look for number followed by %
+            match = re.search(r"(\d+(?:\.\d+)?)\s*%?", text.strip())
             if match:
                 value = float(match.group(1))
-                return min(100.0, max(0.0, value))  # Ограничиваем 0-100
+                logger.debug(f"Extracted percentage value: {value}")
+                return min(100.0, max(0.0, value))  # Limit to 0-100
+            logger.warning(f"Percentage not found in text: '{text}'")
             return 0.0
         except (ValueError, AttributeError):
-            logger.warning(f"Не удалось извлечь процент из: {text}")
+            logger.warning(f"Failed to extract percentage from: {text}")
             return 0.0

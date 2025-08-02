@@ -1,6 +1,6 @@
 """
-Система событий для более элегантного взаимодействия между сервисами
-Использует SQLite как очередь сообщений с NOTIFY/LISTEN механизмом
+Event system for more elegant interaction between services
+Uses SQLite as a message queue with NOTIFY/LISTEN mechanism
 """
 
 import asyncio
@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 
 
 class EventType(Enum):
-    """Типы событий в системе"""
+    """Event types in the system"""
 
     TASK_CREATED = "task_created"
     TASK_COMPLETED = "task_completed"
@@ -27,12 +27,12 @@ class EventType(Enum):
 
 @dataclass
 class Event:
-    """Событие в системе"""
+    """Event in the system"""
 
     id: Optional[int] = None
     event_type: EventType = EventType.TASK_CREATED
-    data: Dict[str, Any] = None
-    created_at: datetime = None
+    data: Optional[Dict[str, Any]] = None
+    created_at: Optional[datetime] = None
     processed: bool = False
 
     def __post_init__(self):
@@ -44,8 +44,8 @@ class Event:
 
 class EventBus:
     """
-    Шина событий с поддержкой async/await
-    Использует SQLite для персистентности и межпроцессного взаимодействия
+    Event bus with async/await support
+    Uses SQLite for persistence and inter-process communication
     """
 
     def __init__(self, db_path: str = "events.db"):
@@ -55,7 +55,7 @@ class EventBus:
         self._init_db()
 
     def _init_db(self):
-        """Инициализация базы данных для событий"""
+        """Initialize database for events"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
@@ -70,7 +70,7 @@ class EventBus:
                 )
             """)
 
-            # Создаем индексы для быстрого поиска
+            # Create indexes for fast search
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_events_type_processed 
                 ON events(event_type, processed)
@@ -84,21 +84,21 @@ class EventBus:
             conn.commit()
             conn.close()
 
-            logger.info(f"Инициализирована база данных событий: {self.db_path}")
+            logger.info(f"Event database initialized: {self.db_path}")
 
         except Exception as e:
-            logger.error(f"Ошибка инициализации базы событий: {e}")
+            logger.error(f"Error initializing event database: {e}")
             raise
 
     def publish(self, event: Event) -> bool:
         """
-        Публикация события
+        Publish event
 
         Args:
-            event: Событие для публикации
+            event: Event to publish
 
         Returns:
-            True если событие успешно опубликовано
+            True if event successfully published
         """
         try:
             conn = sqlite3.connect(self.db_path)
@@ -106,18 +106,25 @@ class EventBus:
 
             import json
 
-            # Безопасная сериализация - конвертируем все в строки если нужно
+            # Safe serialization - convert everything to strings if needed
             try:
                 data_json = json.dumps(event.data)
             except TypeError as json_error:
-                logger.warning(f"Объект не сериализуется в JSON, конвертируем в строку: {json_error}")
-                # Конвертируем все значения в строки для безопасной сериализации
+                logger.warning(
+                    f"Object not JSON serializable, converting to string: {json_error}"
+                )
+                # Convert all values to strings for safe serialization
                 safe_data = {}
-                for key, value in event.data.items():
-                    if isinstance(value, (str, int, float, bool, list, dict, type(None))):
-                        safe_data[key] = value
-                    else:
-                        safe_data[key] = str(value)  # Конвертируем сложные объекты в строку
+                if event.data is not None:
+                    for key, value in event.data.items():
+                        if isinstance(
+                            value, (str, int, float, bool, list, dict, type(None))
+                        ):
+                            safe_data[key] = value
+                        else:
+                            safe_data[key] = str(
+                                value
+                            )  # Convert complex objects to string
                 data_json = json.dumps(safe_data)
 
             cursor.execute(
@@ -132,55 +139,53 @@ class EventBus:
             conn.commit()
             conn.close()
 
-            logger.info(
-                f"Опубликовано событие {event.event_type.value} с ID {event.id}"
-            )
+            logger.info(f"Published event {event.event_type.value} with ID {event.id}")
             return True
 
         except Exception as e:
-            logger.error(f"Ошибка публикации события: {e}")
+            logger.error(f"Error publishing event: {e}")
             return False
 
     def subscribe(self, event_type: EventType, callback: Callable):
         """
-        Подписка на событие
+        Subscribe to event
 
         Args:
-            event_type: Тип события
-            callback: Функция обратного вызова
+            event_type: Event type
+            callback: Callback function
         """
         if event_type not in self.subscribers:
             self.subscribers[event_type] = []
 
         self.subscribers[event_type].append(callback)
-        logger.info(f"Добавлена подписка на событие {event_type.value}")
+        logger.info(f"Added subscription to event {event_type.value}")
 
     def unsubscribe(self, event_type: EventType, callback: Callable):
         """
-        Отписка от события
+        Unsubscribe from event
 
         Args:
-            event_type: Тип события
-            callback: Функция обратного вызова
+            event_type: Event type
+            callback: Callback function
         """
         if event_type in self.subscribers:
             try:
                 self.subscribers[event_type].remove(callback)
-                logger.info(f"Удалена подписка на событие {event_type.value}")
+                logger.info(f"Removed subscription to event {event_type.value}")
             except ValueError:
                 logger.warning(
-                    f"Подписка на {event_type.value} не найдена для удаления"
+                    f"Subscription to {event_type.value} not found for removal"
                 )
 
     async def start_processing(self, poll_interval: float = 0.5):
         """
-        Запуск обработки событий
+        Start event processing
 
         Args:
-            poll_interval: Интервал опроса событий в секундах
+            poll_interval: Event polling interval in seconds
         """
         self.running = True
-        logger.info("Запущена обработка событий")
+        logger.info("Event processing started")
 
         while self.running:
             try:
@@ -188,21 +193,21 @@ class EventBus:
                 await asyncio.sleep(poll_interval)
 
             except Exception as e:
-                logger.error(f"Ошибка в цикле обработки событий: {e}")
+                logger.error(f"Error in event processing loop: {e}")
                 await asyncio.sleep(poll_interval)
 
     def stop_processing(self):
-        """Остановка обработки событий"""
+        """Stop event processing"""
         self.running = False
-        logger.info("Остановлена обработка событий")
+        logger.info("Event processing stopped")
 
     async def _process_events(self):
-        """Обработка необработанных событий"""
+        """Process unprocessed events"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
 
-            # Получаем необработанные события
+            # Get unprocessed events
             cursor.execute("""
                 SELECT id, event_type, data, created_at
                 FROM events
@@ -212,10 +217,10 @@ class EventBus:
             """)
 
             events = cursor.fetchall()
-            
+
             if events:
-                logger.info(f"Найдено {len(events)} необработанных событий")
-            
+                logger.info(f"Found {len(events)} unprocessed events")
+
             for event_row in events:
                 event_id, event_type_str, data_json, created_at = event_row
 
@@ -225,7 +230,7 @@ class EventBus:
                     event_type = EventType(event_type_str)
                     data = json.loads(data_json)
 
-                    # Создаем объект события
+                    # Create event object
                     event = Event(
                         id=event_id,
                         event_type=event_type,
@@ -236,25 +241,33 @@ class EventBus:
                         processed=False,
                     )
 
-                    # Вызываем подписчиков
+                    # Call subscribers
                     if event_type in self.subscribers:
-                        logger.info(f"Найдено {len(self.subscribers[event_type])} подписчиков для события {event_type.value}")
+                        logger.info(
+                            f"Found {len(self.subscribers[event_type])} subscribers for event {event_type.value}"
+                        )
                         for callback in self.subscribers[event_type]:
                             try:
-                                logger.info(f"Вызываем обработчик для события {event_type.value} (ID: {event_id})")
+                                logger.info(
+                                    f"Calling handler for event {event_type.value} (ID: {event_id})"
+                                )
                                 if asyncio.iscoroutinefunction(callback):
                                     await callback(event)
                                 else:
                                     callback(event)
-                                logger.info(f"Обработчик события {event_type.value} (ID: {event_id}) выполнен успешно")
+                                logger.info(
+                                    f"Event handler {event_type.value} (ID: {event_id}) completed successfully"
+                                )
                             except Exception as e:
                                 logger.error(
-                                    f"Ошибка в обработчике события {event_type.value}: {e}"
+                                    f"Error in event handler {event_type.value}: {e}"
                                 )
                     else:
-                        logger.warning(f"Нет подписчиков для события {event_type.value} (ID: {event_id})")
+                        logger.warning(
+                            f"No subscribers for event {event_type.value} (ID: {event_id})"
+                        )
 
-                    # Помечаем событие как обработанное
+                    # Mark event as processed
                     cursor.execute(
                         """
                         UPDATE events SET processed = TRUE WHERE id = ?
@@ -263,8 +276,8 @@ class EventBus:
                     )
 
                 except Exception as e:
-                    logger.error(f"Ошибка обработки события {event_id}: {e}")
-                    # Помечаем как обработанное, чтобы не зациклиться
+                    logger.error(f"Error processing event {event_id}: {e}")
+                    # Mark as processed to avoid infinite loop
                     cursor.execute(
                         """
                         UPDATE events SET processed = TRUE WHERE id = ?
@@ -276,14 +289,14 @@ class EventBus:
             conn.close()
 
         except Exception as e:
-            logger.error(f"Ошибка при обработке событий: {e}")
+            logger.error(f"Error processing events: {e}")
 
     def cleanup_old_events(self, days_old: int = 7):
         """
-        Очистка старых обработанных событий
+        Clean up old processed events
 
         Args:
-            days_old: Количество дней для хранения событий
+            days_old: Number of days to keep events
         """
         try:
             cutoff_date = datetime.now() - timedelta(days=days_old)
@@ -304,83 +317,87 @@ class EventBus:
             conn.close()
 
             if deleted_count > 0:
-                logger.info(f"Удалено {deleted_count} старых событий")
+                logger.info(f"Deleted {deleted_count} old events")
 
         except Exception as e:
-            logger.error(f"Ошибка при очистке старых событий: {e}")
+            logger.error(f"Error cleaning up old events: {e}")
 
 
-# Глобальный экземпляр шины событий
+# Global event bus instance
 _event_bus = None
 
 
 def get_event_bus() -> EventBus:
-    """Получение глобального экземпляра шины событий"""
+    """Get global event bus instance"""
     global _event_bus
     if _event_bus is None:
-        # Используем фиксированный путь для всех процессов
+        # Use fixed path for all processes
         _event_bus = EventBus(db_path="events.db")
-        logger.info(f"Создан новый экземпляр EventBus с путем: events.db")
+        logger.info("Created new EventBus instance with path: events.db")
     return _event_bus
 
 
 class TaskEventManager:
-    """Менеджер событий для задач - упрощенный интерфейс"""
+    """Task event manager - simplified interface"""
 
     def __init__(self):
         self.event_bus = get_event_bus()
 
     def task_created(self, task_id: int, task_type: str, data: Any = None):
-        """Уведомление о создании задачи"""
-        logger.info(f"Создаем событие TASK_CREATED для задачи {task_id}")
+        """Notify about task creation"""
+        logger.info(f"Creating TASK_CREATED event for task {task_id}")
         event = Event(
             event_type=EventType.TASK_CREATED,
             data={"task_id": task_id, "task_type": task_type, "data": data},
         )
         success = self.event_bus.publish(event)
         if success:
-            logger.info(f"Событие TASK_CREATED успешно опубликовано для задачи {task_id}")
+            logger.info(f"TASK_CREATED event successfully published for task {task_id}")
         else:
-            logger.error(f"Ошибка публикации события TASK_CREATED для задачи {task_id}")
+            logger.error(f"Error publishing TASK_CREATED event for task {task_id}")
 
     def task_completed(self, task_id: int, result: Any = None):
-        """Уведомление о завершении задачи"""
-        logger.info(f"Создаем событие TASK_COMPLETED для задачи {task_id}")
-        
-        # Гарантируем, что result - это строка или None
+        """Notify about task completion"""
+        logger.info(f"Creating TASK_COMPLETED event for task {task_id}")
+
+        # Ensure result is string or None
         safe_result = None
         if result is not None:
             if isinstance(result, str):
                 safe_result = result
             else:
-                safe_result = str(result)  # Конвертируем любой объект в строку
-                logger.warning(f"Результат задачи {task_id} конвертирован в строку: {type(result)}")
-        
+                safe_result = str(result)  # Convert any object to string
+                logger.warning(
+                    f"Task {task_id} result converted to string: {type(result)}"
+                )
+
         event = Event(
             event_type=EventType.TASK_COMPLETED,
             data={"task_id": task_id, "result": safe_result},
         )
         success = self.event_bus.publish(event)
         if success:
-            logger.info(f"Событие TASK_COMPLETED успешно опубликовано для задачи {task_id}")
+            logger.info(
+                f"TASK_COMPLETED event successfully published for task {task_id}"
+            )
         else:
-            logger.error(f"Ошибка публикации события TASK_COMPLETED для задачи {task_id}")
+            logger.error(f"Error publishing TASK_COMPLETED event for task {task_id}")
 
     def task_failed(self, task_id: int, error: str):
-        """Уведомление об ошибке в задаче"""
+        """Notify about task error"""
         event = Event(
             event_type=EventType.TASK_FAILED, data={"task_id": task_id, "error": error}
         )
         self.event_bus.publish(event)
 
     def subscribe_to_completions(self, callback: Callable):
-        """Подписка на завершение задач"""
+        """Subscribe to task completions"""
         self.event_bus.subscribe(EventType.TASK_COMPLETED, callback)
 
     def subscribe_to_creations(self, callback: Callable):
-        """Подписка на создание задач"""
+        """Subscribe to task creations"""
         self.event_bus.subscribe(EventType.TASK_CREATED, callback)
 
 
-# Глобальный менеджер событий задач
+# Global task event manager
 task_events = TaskEventManager()

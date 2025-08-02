@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Скрипт для запуска только ИИ агента
+Script to start only the AI agent
 """
 
 import asyncio

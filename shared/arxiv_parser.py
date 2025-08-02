@@ -1,6 +1,6 @@
 """
-Модуль для работы с arXiv API
-Предоставляет функции поиска, получения данных и загрузки научных статей
+Module for working with arXiv API
+Provides functions for searching, retrieving data, and downloading scientific articles
 """
 
 import os
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ArxivPaper:
-    """Класс для представления научной статьи с arXiv"""
+    """Class for representing a scientific article from arXiv"""
 
     id: str
     title: str
@@ -39,14 +39,14 @@ class ArxivPaper:
 
 
 class ArxivParser:
-    """Основной класс для работы с arXiv API"""
+    """Main class for working with arXiv API"""
 
     def __init__(self, downloads_dir: str = "downloads"):
         """
-        Инициализация парсера
+        Initialize parser
 
         Args:
-            downloads_dir: Директория для сохранения загруженных файлов
+            downloads_dir: Directory for saving downloaded files
         """
         self.client = arxiv.Client()
         self.downloads_dir = Path(downloads_dir)
@@ -63,27 +63,27 @@ class ArxivParser:
         date_to: Optional[datetime] = None,
     ) -> List[ArxivPaper]:
         """
-        Поиск статей по запросу
+        Search articles by query
 
         Args:
-            query: Поисковый запрос
-            max_results: Максимальное количество результатов
-            sort_by: Критерий сортировки
-            sort_order: Порядок сортировки
-            categories: Фильтр по категориям (например, ['cs.AI', 'cs.LG'])
-            date_from: Фильтр по дате (с)
-            date_to: Фильтр по дате (до)
+            query: Search query
+            max_results: Maximum number of results
+            sort_by: Sort criterion
+            sort_order: Sort order
+            categories: Category filter (e.g., ['cs.AI', 'cs.LG'])
+            date_from: Date filter (from)
+            date_to: Date filter (to)
 
         Returns:
-            Список объектов ArxivPaper
+            List of ArxivPaper objects
         """
         try:
-            # Строим поисковый запрос
+            # Build search query
             search_query = self._build_search_query(
                 query, categories, date_from, date_to
             )
 
-            # Создаем поисковый объект
+            # Create search object
             search = arxiv.Search(
                 query=search_query,
                 max_results=max_results,
@@ -91,73 +91,73 @@ class ArxivParser:
                 sort_order=sort_order,
             )
 
-            # Выполняем поиск
+            # Execute search
             results = []
             for result in self.client.results(search):
                 paper = self._convert_to_arxiv_paper(result)
                 results.append(paper)
 
-            logger.info(f"Найдено {len(results)} статей по запросу: {query}")
+            logger.info(f"Found {len(results)} articles for query: {query}")
             return results
 
         except Exception as e:
-            logger.error(f"Ошибка при поиске статей: {e}")
+            logger.error(f"Error searching articles: {e}")
             return []
 
     def get_paper_by_id(self, arxiv_id: str) -> Optional[ArxivPaper]:
         """
-        Получение данных статьи по ID
+        Get article data by ID
 
         Args:
-            arxiv_id: ID статьи на arXiv (например, "2301.07041")
+            arxiv_id: Article ID on arXiv (e.g., "2301.07041")
 
         Returns:
-            Объект ArxivPaper или None если не найдена
+            ArxivPaper object or None if not found
         """
         try:
-            # Нормализуем ID
+            # Normalize ID
             clean_id = self._clean_arxiv_id(arxiv_id)
 
-            # Создаем поисковый запрос по ID
+            # Create search query by ID
             search = arxiv.Search(id_list=[clean_id])
 
-            # Получаем результат
+            # Get result
             results = list(self.client.results(search))
             if results:
                 paper = self._convert_to_arxiv_paper(results[0])
-                logger.info(f"Найдена статья: {paper.title}")
+                logger.info(f"Found article: {paper.title}")
                 return paper
             else:
-                logger.warning(f"Статья с ID {arxiv_id} не найдена")
+                logger.warning(f"Article with ID {arxiv_id} not found")
                 return None
 
         except Exception as e:
-            logger.error(f"Ошибка при получении статьи {arxiv_id}: {e}")
+            logger.error(f"Error getting article {arxiv_id}: {e}")
             return None
 
     def download_pdf(
         self, paper: ArxivPaper, filename: Optional[str] = None
     ) -> Optional[str]:
         """
-        Загрузка PDF файла статьи
+        Download article PDF file
 
         Args:
-            paper: Объект ArxivPaper
-            filename: Имя файла для сохранения (по умолчанию генерируется автоматически)
+            paper: ArxivPaper object
+            filename: Filename for saving (auto-generated by default)
 
         Returns:
-            Путь к загруженному файлу или None при ошибке
+            Path to downloaded file or None on error
         """
         try:
             if not filename:
-                # Генерируем имя файла из ID и заголовка
+                # Generate filename from ID and title
                 safe_title = re.sub(r"[^\w\s-]", "", paper.title)[:50]
                 safe_title = re.sub(r"[-\s]+", "-", safe_title)
                 filename = f"{paper.id}_{safe_title}.pdf"
 
             filepath = self.downloads_dir / filename
 
-            # Загружаем PDF
+            # Download PDF
             response = requests.get(paper.pdf_url, stream=True)
             response.raise_for_status()
 
@@ -165,22 +165,22 @@ class ArxivParser:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
 
-            logger.info(f"PDF загружен: {filepath}")
+            logger.info(f"PDF downloaded: {filepath}")
             return str(filepath)
 
         except Exception as e:
-            logger.error(f"Ошибка при загрузке PDF {paper.id}: {e}")
+            logger.error(f"Error downloading PDF {paper.id}: {e}")
             return None
 
     def extract_text_from_pdf(self, pdf_path: str) -> Optional[str]:
         """
-        Извлечение текста из PDF файла
+        Extract text from PDF file
 
         Args:
-            pdf_path: Путь к PDF файлу
+            pdf_path: Path to PDF file
 
         Returns:
-            Извлеченный текст или None при ошибке
+            Extracted text or None on error
         """
         try:
             with open(pdf_path, "rb") as file:
@@ -190,65 +190,65 @@ class ArxivParser:
                 for page in pdf_reader.pages:
                     text += page.extract_text() + "\n\n"
 
-                logger.info(f"Текст извлечен из PDF: {len(text)} символов")
+                logger.info(f"Text extracted from PDF: {len(text)} characters")
                 return text.strip()
 
         except Exception as e:
-            logger.error(f"Ошибка при извлечении текста из PDF {pdf_path}: {e}")
+            logger.error(f"Error extracting text from PDF {pdf_path}: {e}")
             return None
 
     def get_paper_text_online(self, paper: ArxivPaper) -> Optional[str]:
         """
-        Получение полного текста статьи онлайн без загрузки PDF
+        Get full article text online without downloading PDF
 
         Args:
-            paper: Объект ArxivPaper
+            paper: ArxivPaper object
 
         Returns:
-            Текст статьи или None при ошибке
+            Article text or None on error
         """
         try:
-            # Сначала пробуем получить через HTML версию
+            # First try to get through HTML version
             html_url = paper.abs_url.replace("/abs/", "/html/")
 
             response = requests.get(html_url)
             if response.status_code == 200:
                 soup = BeautifulSoup(response.content, "html.parser")
 
-                # Ищем основной текст
+                # Find main text
                 content_div = soup.find("div", class_="ltx_page_content")
                 if content_div:
                     text = content_div.get_text(strip=True)
-                    logger.info(f"Текст получен онлайн (HTML): {len(text)} символов")
+                    logger.info(f"Text obtained online (HTML): {len(text)} characters")
                     return text
 
-            # Если HTML не доступен, загружаем и парсим PDF
-            logger.info("HTML версия недоступна, загружаем PDF...")
+            # If HTML not available, download and parse PDF
+            logger.info("HTML version not available, downloading PDF...")
             pdf_path = self.download_pdf(paper)
             if pdf_path:
                 text = self.extract_text_from_pdf(pdf_path)
-                # Удаляем временный файл
+                # Remove temporary file
                 os.remove(pdf_path)
                 return text
 
             return None
 
         except Exception as e:
-            logger.error(f"Ошибка при получении текста онлайн {paper.id}: {e}")
+            logger.error(f"Error getting text online {paper.id}: {e}")
             return None
 
     def search_by_author(
         self, author_name: str, max_results: int = 10
     ) -> List[ArxivPaper]:
         """
-        Поиск статей по автору
+        Search articles by author
 
         Args:
-            author_name: Имя автора
-            max_results: Максимальное количество результатов
+            author_name: Author name
+            max_results: Maximum number of results
 
         Returns:
-            Список статей автора
+            List of author's articles
         """
         query = f"au:{author_name}"
         return self.search_papers(query, max_results=max_results)
@@ -257,14 +257,14 @@ class ArxivParser:
         self, category: str, max_results: int = 10
     ) -> List[ArxivPaper]:
         """
-        Поиск статей по категории
+        Search articles by category
 
         Args:
-            category: Категория (например, 'cs.AI', 'cs.LG')
-            max_results: Максимальное количество результатов
+            category: Category (e.g., 'cs.AI', 'cs.LG')
+            max_results: Maximum number of results
 
         Returns:
-            Список статей в категории
+            List of articles in category
         """
         query = f"cat:{category}"
         return self.search_papers(query, max_results=max_results)
@@ -273,15 +273,15 @@ class ArxivParser:
         self, category: Optional[str] = None, days: int = 7, max_results: int = 10
     ) -> List[ArxivPaper]:
         """
-        Получение последних статей
+        Get recent articles
 
         Args:
-            category: Категория для фильтра
-            days: Количество дней назад
-            max_results: Максимальное количество результатов
+            category: Category filter
+            days: Number of days back
+            max_results: Maximum number of results
 
         Returns:
-            Список последних статей
+            List of recent articles
         """
         date_from = datetime.now() - timedelta(days=days)
 
@@ -304,16 +304,16 @@ class ArxivParser:
         date_from: Optional[datetime] = None,
         date_to: Optional[datetime] = None,
     ) -> str:
-        """Построение поискового запроса с фильтрами"""
+        """Build search query with filters"""
 
         search_parts = [query]
 
-        # Добавляем фильтр по категориям
+        # Add category filter
         if categories:
             cat_filter = " OR ".join([f"cat:{cat}" for cat in categories])
             search_parts.append(f"({cat_filter})")
 
-        # Добавляем фильтр по датам (базовая поддержка)
+        # Add date filter (basic support)
         if date_from:
             date_str = date_from.strftime("%Y%m%d")
             search_parts.append(f"submittedDate:[{date_str}* TO *]")
@@ -321,7 +321,7 @@ class ArxivParser:
         return " AND ".join(search_parts)
 
     def _convert_to_arxiv_paper(self, result: arxiv.Result) -> ArxivPaper:
-        """Конвертация результата поиска в ArxivPaper"""
+        """Convert search result to ArxivPaper"""
 
         return ArxivPaper(
             id=result.entry_id.split("/")[-1],
@@ -331,7 +331,7 @@ class ArxivParser:
             categories=result.categories,
             published=result.published,
             updated=result.updated,
-            pdf_url=result.pdf_url,
+            pdf_url=result.pdf_url or "",
             abs_url=result.entry_id,
             journal_ref=result.journal_ref,
             doi=result.doi,
@@ -340,31 +340,31 @@ class ArxivParser:
         )
 
     def _clean_arxiv_id(self, arxiv_id: str) -> str:
-        """Очистка и нормализация arXiv ID"""
-        # Убираем префикс "arXiv:" если есть
+        """Clean and normalize arXiv ID"""
+        # Remove "arXiv:" prefix if present
         clean_id = arxiv_id.replace("arXiv:", "")
-        # Убираем версию если есть (например, v1, v2)
+        # Remove version if present (e.g., v1, v2)
         clean_id = re.sub(r"v\d+$", "", clean_id)
         return clean_id
 
 
-# Вспомогательные функции для удобства использования
+# Helper functions for convenience
 
 
 def search_papers(query: str, max_results: int = 10) -> List[ArxivPaper]:
-    """Быстрый поиск статей"""
+    """Quick article search"""
     parser = ArxivParser()
     return parser.search_papers(query, max_results)
 
 
 def get_paper(arxiv_id: str) -> Optional[ArxivPaper]:
-    """Быстрое получение статьи по ID"""
+    """Quick article retrieval by ID"""
     parser = ArxivParser()
     return parser.get_paper_by_id(arxiv_id)
 
 
 def download_paper(arxiv_id: str, downloads_dir: str = "downloads") -> Optional[str]:
-    """Быстрая загрузка статьи"""
+    """Quick article download"""
     parser = ArxivParser(downloads_dir)
     paper = parser.get_paper_by_id(arxiv_id)
     if paper:
@@ -373,12 +373,12 @@ def download_paper(arxiv_id: str, downloads_dir: str = "downloads") -> Optional[
 
 
 if __name__ == "__main__":
-    # Пример использования
+    # Usage example
     logging.basicConfig(level=logging.INFO)
 
     parser = ArxivParser()
 
-    # Поиск по ключевым словам
+    # Search by keywords
     papers = parser.search_papers("machine learning transformers", max_results=5)
 
     for paper in papers:

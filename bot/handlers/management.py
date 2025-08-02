@@ -1,9 +1,11 @@
 from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
+from aiogram.enums import ParseMode
 import re
 import json
 
+from bot.utils import format_html
 from shared.database import db, ResearchTopic, UserSettings, Task
 from peewee import DoesNotExist
 from shared.logger import get_logger
@@ -16,46 +18,47 @@ logger = get_logger(__name__)
 
 @router.message(Command("topic"))
 async def command_topic_handler(message: Message) -> None:
-    """Обработчик команды /topic для задания тем анализа"""
+    """Handler for /topic command to set analysis topics"""
     try:
         if not message.from_user:
-            await message.answer("Ошибка: не удалось определить пользователя.")
+            await message.answer("Error: could not determine user\\.")
             return
 
         user_id = message.from_user.id
         command_text = message.text or ""
 
-        # Парсим аргументы команды (ожидаем две темы в кавычках)
+        # Parse command arguments (expect two topics in quotes)
         pattern = r'/topic\s+"([^"]+)"\s+"([^"]+)"'
         match = re.search(pattern, command_text)
 
         if not match:
-            await message.answer(
-                "❌ Неверный формат команды.\n\n"
-                "✅ Правильный формат:\n"
-                '`/topic "целевая тема" "область поиска"`\n\n'
-                "📝 Примеры:\n"
-                '• `/topic "машинное обучение" "медицина"`\n'
-                '• `/topic "квантовые вычисления" "криптография"`\n'
-                '• `/topic "блокчейн" "логистика"`'
+            message_text = (
+                "❌ Invalid command format\\.\n\n"
+                "✅ Correct format:\n"
+                '/topic "target topic" "search area"\n\n'
+                "📝 Examples:\n"
+                '• `/topic "machine learning" "medicine"`\n'
+                '• `/topic "quantum computing" "cryptography"`\n'
+                '• `/topic "blockchain" "logistics"`'
             )
+            await message.answer(message_text, parse_mode=ParseMode.HTML)
             return
 
         target_topic = match.group(1).strip()
         search_area = match.group(2).strip()
 
         if len(target_topic) < 2 or len(search_area) < 2:
-            await message.answer("❌ Темы должны содержать минимум 3 символа.")
+            await message.answer("❌ Topics must contain at least 3 characters\\.")
             return
 
         db.connect()
 
-        # Деактивируем предыдущие темы пользователя
+        # Deactivate previous user topics
         ResearchTopic.update(is_active=False).where(
             ResearchTopic.user_id == user_id, ResearchTopic.is_active
         ).execute()
 
-        # Создаем новую тему
+        # Create new topic
         topic = ResearchTopic.create(
             user_id=user_id,
             target_topic=target_topic,
@@ -63,13 +66,13 @@ async def command_topic_handler(message: Message) -> None:
             is_active=True,
         )
 
-        # Создаем настройки пользователя если их нет
+        # Create user settings if they don't exist
         try:
             UserSettings.get(UserSettings.user_id == user_id)
         except DoesNotExist:
             UserSettings.create(user_id=user_id)
 
-        # Создаем задачу для ИИ агента на начало мониторинга
+        # Create task for AI agent to start monitoring
         task = Task.create(
             task_type="start_monitoring",
             data=json.dumps(
@@ -83,35 +86,39 @@ async def command_topic_handler(message: Message) -> None:
             status="pending",
         )
 
-        # Уведомляем агента
+        # Notify agent
         task_events.task_created(
             task_id=task.id,
             task_type="start_monitoring",
             data={"user_id": user_id, "topic_id": topic.id},
         )
 
+        message_text = (
+            f"✅ **Analysis topics set**\n\n"
+            f"🎯 **Target topic:** {format_html(target_topic)}\n"
+            f"🔍 **Search area:** {format_html(search_area)}\n\n"
+            f"🤖 AI agent has started monitoring arXiv for topic intersections\\.\n"
+            f"📬 I will send notifications about found relevant articles\\.\n\n"
+            f"📊 Use `/status` to check status\\."
+        )
+
         await message.answer(
-            f"✅ **Темы для анализа установлены!**\n\n"
-            f"🎯 **Целевая тема:** {target_topic}\n"
-            f"🔍 **Область поиска:** {search_area}\n\n"
-            f"🤖 ИИ-агент начал мониторинг arXiv для поиска пересечений тем.\n"
-            f"📬 Я буду присылать уведомления о найденных релевантных статьях.\n\n"
-            f"📊 Используйте `/status` для проверки состояния."
+            format_html(message_text), parse_mode=ParseMode.HTML
         )
 
         db.close()
 
     except Exception as e:
-        logger.error(f"Ошибка в команде /topic: {e}")
-        await message.answer("❌ Произошла ошибка при установке тем.")
+        logger.error(f"Error in /topic command: {e}")
+        await message.answer("❌ An error occurred while setting topics\\.")
 
 
 @router.message(Command("switch_themes"))
 async def command_switch_themes_handler(message: Message) -> None:
-    """Поменять местами целевую тему и область поиска"""
+    """Swap target topic and search area"""
     try:
         if not message.from_user:
-            await message.answer("Ошибка: не удалось определить пользователя.")
+            await message.answer("Error: could not determine user\\.")
             return
 
         user_id = message.from_user.id
@@ -122,7 +129,7 @@ async def command_switch_themes_handler(message: Message) -> None:
                 ResearchTopic.user_id == user_id, ResearchTopic.is_active
             )
 
-            # Меняем местами темы
+            # Swap topics
             old_target = topic.target_topic
             old_area = topic.search_area
 
@@ -130,7 +137,7 @@ async def command_switch_themes_handler(message: Message) -> None:
             topic.search_area = old_target
             topic.save()
 
-            # Создаем задачу для перезапуска мониторинга
+            # Create task to restart monitoring
             task = Task.create(
                 task_type="restart_monitoring",
                 data=json.dumps(
@@ -150,32 +157,38 @@ async def command_switch_themes_handler(message: Message) -> None:
                 data={"user_id": user_id, "topic_id": topic.id},
             )
 
+            message_text = (
+                f"🔄 **Topics swapped**\n\n"
+                f"🎯 **New target topic:** {format_html(topic.target_topic)}\n"
+                f"🔍 **New search area:** {format_html(topic.search_area)}\n\n"
+                f"🤖 Monitoring restarted with new parameters\\."
+            )
+
             await message.answer(
-                f"🔄 **Темы поменяны местами!**\n\n"
-                f"🎯 **Новая целевая тема:** {topic.target_topic}\n"
-                f"🔍 **Новая область поиска:** {topic.search_area}\n\n"
-                f"🤖 Мониторинг перезапущен с новыми параметрами."
+                format_html(message_text), parse_mode=ParseMode.HTML
             )
 
         except DoesNotExist:
             await message.answer(
-                "❌ **Темы не заданы**\n\n"
-                "Сначала используйте `/topic` для задания тем."
+                format_html(
+                    "❌ **Topics not set**\n\n" "First use /topic to set topics\\."
+                ),
+                parse_mode=ParseMode.HTML,
             )
 
         db.close()
 
     except Exception as e:
-        logger.error(f"Ошибка в команде /switch_themes: {e}")
-        await message.answer("❌ Произошла ошибка при смене тем.")
+        logger.error(f"Error in /switch_themes command: {e}")
+        await message.answer("❌ An error occurred while switching topics\\.")
 
 
 @router.message(Command("pause"))
 async def command_pause_handler(message: Message) -> None:
-    """Приостановить мониторинг"""
+    """Pause monitoring"""
     try:
         if not message.from_user:
-            await message.answer("Ошибка: не удалось определить пользователя.")
+            await message.answer("Error: could not determine user\\.")
             return
 
         user_id = message.from_user.id
@@ -187,26 +200,26 @@ async def command_pause_handler(message: Message) -> None:
             settings.save()
 
             await message.answer(
-                "⏸️ **Мониторинг приостановлен**\n\n"
-                "Используйте `/resume` для возобновления."
+                format_html("⏸️ **Monitoring paused**\n\n" "Use /resume to resume\\."),
+                parse_mode=ParseMode.HTML,
             )
 
         except DoesNotExist:
-            await message.answer("❌ Настройки пользователя не найдены.")
+            await message.answer("❌ User settings not found\\.")
 
         db.close()
 
     except Exception as e:
-        logger.error(f"Ошибка в команде /pause: {e}")
-        await message.answer("❌ Произошла ошибка при приостановке.")
+        logger.error(f"Error in /pause command: {e}")
+        await message.answer("❌ An error occurred while pausing\\.")
 
 
 @router.message(Command("resume"))
 async def command_resume_handler(message: Message) -> None:
-    """Возобновить мониторинг"""
+    """Resume monitoring"""
     try:
         if not message.from_user:
-            await message.answer("Ошибка: не удалось определить пользователя.")
+            await message.answer("Error: could not determine user\\.")
             return
 
         user_id = message.from_user.id
@@ -218,26 +231,27 @@ async def command_resume_handler(message: Message) -> None:
             settings.save()
 
             await message.answer(
-                "▶️ **Мониторинг возобновлен**\n\n"
-                "ИИ-агент продолжил поиск релевантных статей."
+                format_html("▶️ **Monitoring resumed**\n\n"
+                "AI agent has continued searching for relevant articles\\."),
+                parse_mode=ParseMode.HTML,
             )
 
         except DoesNotExist:
-            await message.answer("❌ Настройки пользователя не найдены.")
+            await message.answer("❌ User settings not found\\.")
 
         db.close()
 
     except Exception as e:
-        logger.error(f"Ошибка в команде /resume: {e}")
-        await message.answer("❌ Произошла ошибка при возобновлении.")
+        logger.error(f"Error in /resume command: {e}")
+        await message.answer("❌ An error occurred while resuming\\.")
 
 
 @router.message(Command("settings"))
 async def command_settings_handler(message: Message) -> None:
-    """Показать текущие настройки"""
+    """Show current settings"""
     try:
         if not message.from_user:
-            await message.answer("Ошибка: не удалось определить пользователя.")
+            await message.answer("Error: could not determine user\\.")
             return
 
         user_id = message.from_user.id
@@ -246,33 +260,35 @@ async def command_settings_handler(message: Message) -> None:
         try:
             settings = UserSettings.get(UserSettings.user_id == user_id)
         except DoesNotExist:
-            # Создаем настройки по умолчанию
+            # Create default settings
             settings = UserSettings.create(user_id=user_id)
 
+        status_text = "Enabled" if settings.monitoring_enabled else "Disabled"
+
         settings_text = f"""
-⚙️ **Настройки анализа**
+⚙️ **Analysis Settings**
 
-📊 **Пороги релевантности:**
-• Область поиска: {settings.min_search_area_relevance:.1f}%
-• Целевая тема: {settings.min_target_topic_relevance:.1f}%
-• Общая оценка: {settings.min_overall_relevance:.1f}%
+📊 **Relevance Thresholds:**
+• Search Area: {settings.min_search_area_relevance:.1f}%
+• Target Topic: {settings.min_target_topic_relevance:.1f}%
+• Overall Score: {settings.min_overall_relevance:.1f}%
 
-🔔 **Уведомления:**
-• Мгновенные: ≥{settings.instant_notification_threshold:.1f}%
-• Дневная сводка: ≥{settings.daily_digest_threshold:.1f}%
-• Недельный дайджест: ≥{settings.weekly_digest_threshold:.1f}%
+🔔 **Notifications:**
+• Instant: ≥{settings.instant_notification_threshold:.1f}%
+• Daily Digest: ≥{settings.daily_digest_threshold:.1f}%
+• Weekly Digest: ≥{settings.weekly_digest_threshold:.1f}%
 
-⏰ **Временные фильтры:**
-• Глубина поиска: {settings.days_back_to_search} дней
+⏰ **Time Filters:**
+• Search Depth: {settings.days_back_to_search} days
 
-🤖 **Состояние:** {"Включен" if settings.monitoring_enabled else "Выключен"}
+🤖 **Status:** {format_html(status_text)}
 
-💡 Для изменения настроек свяжитесь с разработчиком.
+💡 Contact the developer to change settings\\.
         """
 
-        await message.answer(settings_text)
+        await message.answer(format_html(settings_text), parse_mode=ParseMode.HTML)
         db.close()
 
     except Exception as e:
-        logger.error(f"Ошибка в команде /settings: {e}")
-        await message.answer("❌ Произошла ошибка при получении настроек.")
+        logger.error(f"Error in /settings command: {e}")
+        await message.answer("❌ An error occurred while getting settings\\.")
