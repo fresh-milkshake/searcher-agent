@@ -1,6 +1,7 @@
 import os
 import json
 import re
+import asyncio
 from datetime import datetime
 from typing import Dict, Any, Optional
 from dotenv import load_dotenv
@@ -15,6 +16,7 @@ from shared.database import (
     ArxivPaper,
     PaperAnalysis,
     AgentStatus,
+    ResearchTopic,
 )
 from peewee import DoesNotExist
 from shared.llm import AGENT_MODEL
@@ -22,6 +24,7 @@ from shared.logger import get_logger
 from shared.event_system import task_events
 from shared.arxiv_parser import ArxivParser, ArxivPaper as ArxivPaperData
 from agents import Agent, Runner
+from agent.schemas import TopicAnalysis, AnalysisReport
 
 load_dotenv()
 
@@ -33,34 +36,11 @@ class ArxivAnalysisAgent:
 
     def __init__(self):
         logger.debug("Initializing ArxivAnalysisAgent")
-        # Create agent for search area analysis
-        self.area_analyzer = Agent(
-            name="Area Relevance Analyzer",
-            model=AGENT_MODEL,
-            instructions="""
-You are an expert in analyzing scientific articles. Your task is to determine how relevant an article is to the specified scientific field.
-
-Analyze:
-1. The article title
-2. The abstract
-3. arXiv categories
-4. Keywords
-
-Assess the relevance from 0 to 100%, where:
-- 90-100%: the article fully belongs to the field
-- 70-89%: the article mostly belongs to the field
-- 50-69%: the article is partially related to the field
-- 30-49%: the article is weakly related to the field
-- 0-29%: the article does not belong to the field
-
-Reply ONLY with a number (percentage), no additional text.
-            """,
-        )
-
         # Create agent for target topic analysis
         self.topic_analyzer = Agent(
             name="Target Topic Analyzer",
             model=AGENT_MODEL,
+            output_type=TopicAnalysis,
             instructions="""
 You are an expert in identifying specific topics in scientific articles. Your task is to find mentions and applications of the target topic in the text.
 
@@ -77,7 +57,7 @@ Assess the presence of the topic from 0 to 100%, where:
 - 30-49%: the topic is mentioned but not central
 - 0-29%: the topic is not mentioned or only briefly mentioned
 
-Reply ONLY with a number (percentage), no additional text.
+Provide your assessment with confidence level, key mentions found, and concise reasoning (max 100 chars).
             """,
         )
 
@@ -85,15 +65,18 @@ Reply ONLY with a number (percentage), no additional text.
         self.report_generator = Agent(
             name="Analysis Report Generator",
             model=AGENT_MODEL,
+            output_type=AnalysisReport,
             instructions="""
 You create concise analytical reports on the intersection of scientific topics.
 
-Generate a brief report (2-3 sentences) about:
+Analyze and provide:
 1. How exactly the target topic is applied in the context of the search area
 2. The innovativeness of the approach
 3. Practical significance
+4. Key applications or methods mentioned
+5. Overall recommendation for relevance
 
-Use a professional scientific style, be specific and informative.
+Use a professional scientific style, be specific and concise. Keep summary under 300 characters.
             """,
         )
 
@@ -142,7 +125,7 @@ Use a professional scientific style, be specific and informative.
 
             self.update_status(
                 "starting_monitoring",
-                f"Запуск мониторинга для пользователя {user_id}: '{target_topic}' в области '{search_area}'",
+                f"Starting monitoring for user {user_id}: '{target_topic}' in area '{search_area}'",
                 user_id,
                 topic_id,
             )
@@ -162,7 +145,7 @@ Use a professional scientific style, be specific and informative.
                 f"monitoring_active[{user_id}] = {self.monitoring_active[user_id]}"
             )
 
-            # Start initial article search
+            # Start continuous monitoring
             if (
                 isinstance(user_id, int)
                 and isinstance(target_topic, str)
@@ -170,14 +153,17 @@ Use a professional scientific style, be specific and informative.
                 and isinstance(topic_id, int)
             ):
                 logger.debug(
-                    "Parameters for perform_arxiv_search are valid, starting search"
+                    "Parameters for continuous monitoring are valid, starting monitoring loop"
                 )
-                await self.perform_arxiv_search(
-                    user_id, target_topic, search_area, topic_id
+                # Start continuous monitoring in background
+                asyncio.create_task(
+                    self._continuous_monitoring_loop(
+                        user_id, target_topic, search_area, topic_id
+                    )
                 )
             else:
                 logger.error(
-                    f"Invalid parameter types for perform_arxiv_search: {type(user_id)}, {type(target_topic)}, {type(search_area)}, {type(topic_id)}"
+                    f"Invalid parameter types for continuous monitoring: {type(user_id)}, {type(target_topic)}, {type(search_area)}, {type(topic_id)}"
                 )
                 return "Error: invalid parameter types"
 
@@ -203,14 +189,87 @@ Use a professional scientific style, be specific and informative.
         logger.info(f"Starting new monitoring for user {user_id}")
         return await self.start_monitoring(task_data)
 
+    async def _continuous_monitoring_loop(
+        self, user_id: int, target_topic: str, search_area: str, topic_id: int
+    ):
+        """Continuous monitoring loop that runs until stopped by user"""
+        logger.info(f"Starting continuous monitoring loop for user {user_id}")
+
+        search_offset = 0  # Track position in search results
+
+        while True:
+            try:
+                # Check if monitoring is still active for this user
+                if user_id not in self.monitoring_active:
+                    logger.info(f"Monitoring stopped for user {user_id}")
+                    break
+
+                # Check if user has paused monitoring
+                try:
+                    settings = UserSettings.get(UserSettings.user_id == user_id)
+                    if not settings.monitoring_enabled:
+                        logger.info(f"Monitoring paused for user {user_id}, waiting...")
+                        await asyncio.sleep(60)  # Wait 1 minute before checking again
+                        continue
+                except DoesNotExist:
+                    pass
+
+                # Check if topic is still active
+                try:
+                    topic = ResearchTopic.get(
+                        ResearchTopic.id == topic_id, ResearchTopic.is_active
+                    )
+                    if not topic.is_active:
+                        logger.info(
+                            f"Topic {topic_id} is no longer active for user {user_id}"
+                        )
+                        break
+                except DoesNotExist:
+                    logger.info(f"Topic {topic_id} no longer exists for user {user_id}")
+                    break
+
+                logger.info(
+                    f"Performing search cycle {search_offset//20 + 1} for user {user_id}"
+                )
+                await self.perform_arxiv_search_with_offset(
+                    user_id, target_topic, search_area, topic_id, search_offset
+                )
+
+                search_offset += 20  # Move to next batch
+
+                # Wait between search cycles to avoid overloading
+                await asyncio.sleep(30)  # Wait 30 seconds between cycles
+
+            except Exception as e:
+                logger.error(
+                    f"Error in continuous monitoring loop for user {user_id}: {e}"
+                )
+                await asyncio.sleep(60)  # Wait longer on error
+
+        logger.info(f"Continuous monitoring loop ended for user {user_id}")
+
     async def perform_arxiv_search(
         self, user_id: int, target_topic: str, search_area: str, topic_id: int
     ):
-        """Performs arXiv search and analyzes articles"""
+        """Performs arXiv search and analyzes articles (legacy function for compatibility)"""
+        await self.perform_arxiv_search_with_offset(
+            user_id, target_topic, search_area, topic_id, 0
+        )
+
+    async def perform_arxiv_search_with_offset(
+        self,
+        user_id: int,
+        target_topic: str,
+        search_area: str,
+        topic_id: int,
+        offset: int = 0,
+    ):
+        """Performs arXiv search with pagination support"""
         try:
+            cycle_num = offset // 20 + 1
             self.update_status(
                 "searching_papers",
-                f"Поиск статей по теме '{target_topic}' в области '{search_area}' для пользователя {user_id}",
+                f"Search cycle {cycle_num}: Searching papers on topic '{target_topic}' in area '{search_area}' for user {user_id}",
                 user_id,
                 topic_id,
             )
@@ -233,22 +292,31 @@ Use a professional scientific style, be specific and informative.
                     f"Failed to get user {user_id} settings, using days_back=7"
                 )
 
-            # Stage 1: Search by search area
-            logger.info(f"Stage 1: Searching articles in area '{search_area}'")
-
-            # Remove date filter to ensure we find articles
-            # date_from = datetime.now() - timedelta(days=days_back)
-            # logger.debug(f"Search start date: {date_from}")
-            papers = self.arxiv_parser.search_papers(
-                query=search_area,
-                max_results=20,  # Removed date_from parameter
+            # Stage 1: Search by search area with offset
+            logger.info(
+                f"Stage 1 (cycle {cycle_num}): Searching articles in area '{search_area}' with offset {offset}"
             )
 
-            logger.info(f"Found {len(papers)} articles in area '{search_area}'")
+            # Use offset for pagination
+            papers = self.arxiv_parser.search_papers(
+                query=search_area,
+                max_results=20,
+                start=offset,  # Add offset parameter for pagination
+            )
+
+            logger.info(
+                f"Found {len(papers)} articles in area '{search_area}' (cycle {cycle_num})"
+            )
+
+            if len(papers) == 0:
+                logger.info(
+                    f"No more articles found, reached end of search results for cycle {cycle_num}"
+                )
+                return
 
             self.update_status(
                 "analyzing_papers",
-                f"Анализ {len(papers)} статей для пользователя {user_id}",
+                f"Cycle {cycle_num}: Analyzing {len(papers)} papers for user {user_id}",
                 user_id,
                 topic_id,
             )
@@ -256,11 +324,11 @@ Use a professional scientific style, be specific and informative.
             # Stage 2: Analyze each article for target topic
             for idx, paper in enumerate(papers):
                 logger.debug(
-                    f"Analyzing article {idx+1}/{len(papers)}: {getattr(paper, 'id', 'unknown id')}"
+                    f"Analyzing article {idx+1}/{len(papers)} (cycle {cycle_num}): {getattr(paper, 'id', 'unknown id')}"
                 )
                 self.update_status(
                     "analyzing_paper",
-                    f"Анализ статьи {idx+1}/{len(papers)}: {getattr(paper, 'title', 'unknown title')[:50]}...",
+                    f"Cycle {cycle_num}: Analyzing paper {idx+1}/{len(papers)}: {getattr(paper, 'title', 'unknown title')[:50]}...",
                     user_id,
                     topic_id,
                 )
@@ -268,13 +336,14 @@ Use a professional scientific style, be specific and informative.
                     paper, user_id, topic_id, target_topic, search_area
                 )
 
+            logger.info(f"Completed analysis cycle {cycle_num} for user {user_id}")
             logger.debug(
                 "Database connection maintained after search and article analysis"
             )
             # Don't close connection here - let the caller manage it
 
         except Exception as e:
-            logger.error(f"Error in arXiv search: {e}")
+            logger.error(f"Error in arXiv search (cycle {cycle_num}): {e}")
             # Don't close connection in exception handler either
 
     async def analyze_single_paper(
@@ -346,19 +415,7 @@ Primary category: {paper_data.primary_category or 'Not specified'}
             """
             logger.debug(f"Content prepared for analysis of article {paper_data.id}")
 
-            # Analyze search area relevance
-            area_query = f"Search area: {search_area}\n\nArticle:\n{paper_content}"
-            logger.debug(f"Sending area_analyzer request for article {paper_data.id}")
-            area_result = await Runner.run(self.area_analyzer, area_query)
-            logger.debug(f"area_analyzer result: {area_result.final_output}")
-            logger.info(
-                f"AI response (area_analyzer) for article {paper_data.id}: {area_result.final_output}"
-            )
-            area_relevance = self._extract_percentage(
-                str(area_result.final_output) if area_result.final_output else "0"
-            )
-
-            # Analyze target topic presence
+            # Analyze target topic presence (area relevance is assumed since we search by keywords)
             topic_query = f"Target topic: {target_topic}\n\nArticle:\n{paper_content}"
             logger.debug(f"Sending topic_analyzer request for article {paper_data.id}")
             topic_result = await Runner.run(self.topic_analyzer, topic_query)
@@ -366,39 +423,42 @@ Primary category: {paper_data.primary_category or 'Not specified'}
             logger.info(
                 f"AI response (topic_analyzer) for article {paper_data.id}: {topic_result.final_output}"
             )
-            topic_relevance = self._extract_percentage(
-                str(topic_result.final_output) if topic_result.final_output else "0"
-            )
 
-            # Calculate overall relevance score
-            overall_relevance = area_relevance * 0.4 + topic_relevance * 0.6
+            # Extract structured output
+            if isinstance(topic_result.final_output, TopicAnalysis):
+                topic_relevance = topic_result.final_output.topic_presence
+                topic_confidence = topic_result.final_output.confidence
+                key_mentions = topic_result.final_output.key_mentions
+                logger.info(
+                    f"Topic analysis: {topic_relevance}% (confidence: {topic_confidence}, mentions: {len(key_mentions)})"
+                )
+            else:
+                # Fallback for non-structured output
+                topic_relevance = self._extract_percentage(
+                    str(topic_result.final_output) if topic_result.final_output else "0"
+                )
+                topic_confidence = "unknown"
+                key_mentions = []
+
+            # Use topic relevance as overall relevance (area is pre-filtered by search)
+            overall_relevance = topic_relevance
 
             logger.info(
-                f"Analysis {paper_data.id}: area={area_relevance}%, topic={topic_relevance}%, overall={overall_relevance}%"
+                f"Analysis {paper_data.id}: topic={topic_relevance}% ({topic_confidence}), overall={overall_relevance}%"
             )
 
             # Check if article is relevant enough
             try:
                 settings = UserSettings.get(UserSettings.user_id == user_id)
-                min_overall = settings.min_overall_relevance
-                min_area = settings.min_search_area_relevance
                 min_topic = settings.min_target_topic_relevance
-                logger.debug(
-                    f"Threshold values: min_overall={min_overall}, min_area={min_area}, min_topic={min_topic}"
-                )
+                logger.debug(f"Threshold value: min_topic={min_topic}")
             except DoesNotExist:
-                min_overall = 60.0
-                min_area = 50.0
                 min_topic = 50.0
                 logger.warning(
-                    f"Failed to get user {user_id} settings, using default values"
+                    f"Failed to get user {user_id} settings, using default min_topic=50.0"
                 )
 
-            if (
-                overall_relevance >= min_overall
-                and area_relevance >= min_area
-                and topic_relevance >= min_topic
-            ):
+            if topic_relevance >= min_topic:
                 logger.info(
                     f"Article {paper_data.id} meets all relevance criteria, generating report"
                 )
@@ -411,7 +471,6 @@ Article: {paper_data.title}
 Abstract: {paper_data.summary}
 
 Relevance scores:
-- Search area: {area_relevance}%
 - Target topic: {topic_relevance}%
 - Overall score: {overall_relevance:.1f}%
 
@@ -426,11 +485,28 @@ Create a brief report on topic intersection.
                 logger.info(
                     f"AI response (report_generator) for article {paper_data.id}: {report_result.final_output}"
                 )
-                summary = (
-                    str(report_result.final_output)
-                    if report_result.final_output
-                    else "Brief analysis unavailable"
-                )
+
+                # Extract structured output
+                if isinstance(report_result.final_output, AnalysisReport):
+                    summary = report_result.final_output.summary
+                    innovation_level = report_result.final_output.innovation_level
+                    practical_significance = (
+                        report_result.final_output.practical_significance
+                    )
+                    recommendation = report_result.final_output.recommendation
+                    logger.info(
+                        f"Report generated: innovation={innovation_level}, significance={practical_significance}, recommendation={recommendation}"
+                    )
+                else:
+                    # Fallback for non-structured output
+                    summary = (
+                        str(report_result.final_output)
+                        if report_result.final_output
+                        else "Brief analysis unavailable"
+                    )
+                    innovation_level = "unknown"
+                    practical_significance = "unknown"
+                    recommendation = "not_assessed"
 
                 # Save analysis
                 logger.info(
@@ -439,7 +515,7 @@ Create a brief report on topic intersection.
                 analysis = PaperAnalysis.create(
                     paper=paper.id,
                     topic=topic_id,
-                    search_area_relevance=area_relevance,
+                    search_area_relevance=100.0,  # Pre-filtered by search keywords
                     target_topic_relevance=topic_relevance,
                     overall_relevance=overall_relevance,
                     summary=summary,
@@ -458,7 +534,7 @@ Create a brief report on topic intersection.
                 )
             else:
                 logger.info(
-                    f"Article {paper_data.id} did not meet relevance threshold: overall={overall_relevance}, area={area_relevance}, topic={topic_relevance}"
+                    f"Article {paper_data.id} did not meet relevance threshold: topic={topic_relevance}%, overall={overall_relevance}%"
                 )
 
         except Exception as e:

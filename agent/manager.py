@@ -33,7 +33,7 @@ async def handle_task_creation(event: Event):
         )
 
         # Check if database is already connected
-        if hasattr(db, 'is_closed') and db.is_closed():
+        if hasattr(db, "is_closed") and db.is_closed():
             db.connect()
         logger.debug("Database connection established (handle_task_creation)")
 
@@ -71,7 +71,8 @@ async def handle_task_creation(event: Event):
                 task.status = "failed"
                 task.result = str(e)
                 task.save()
-            except:
+            except Exception as e:
+                logger.error(f"Error marking task {task_id} as failed: {e}")
                 pass
 
         # Don't close connection here - let the caller manage it
@@ -85,7 +86,7 @@ async def check_and_process_pending_tasks(agent: ArxivAnalysisAgent):
     """Check for unprocessed tasks and process them"""
     try:
         # Check if database is already connected
-        if hasattr(db, 'is_closed') and db.is_closed():
+        if hasattr(db, "is_closed") and db.is_closed():
             db.connect()
 
         # Get all pending tasks
@@ -97,7 +98,9 @@ async def check_and_process_pending_tasks(agent: ArxivAnalysisAgent):
 
             for task in pending_tasks:
                 try:
-                    logger.info(f"🔄 Processing missed task {task.id} of type {task.task_type}")
+                    logger.info(
+                        f"🔄 Processing missed task {task.id} of type {task.task_type}"
+                    )
 
                     # Process the task
                     result = await agent.process_task(task)
@@ -129,7 +132,7 @@ async def periodic_monitoring(agent: ArxivAnalysisAgent):
     """Periodic monitoring of active research topics"""
     try:
         # Check if database is already connected
-        if hasattr(db, 'is_closed') and db.is_closed():
+        if hasattr(db, "is_closed") and db.is_closed():
             db.connect()
         logger.debug("Database connection established (periodic_monitoring)")
 
@@ -140,7 +143,7 @@ async def periodic_monitoring(agent: ArxivAnalysisAgent):
 
         agent.update_status(
             "periodic_monitoring",
-            f"Периодический мониторинг {topic_count} активных топиков",
+            f"Periodic monitoring of {topic_count} active topics",
         )
 
         for topic in active_topics:
@@ -208,7 +211,7 @@ async def main():
     logger.debug("ArxivAnalysisAgent initialized")
 
     # Set initial status
-    agent.update_status("starting", "Запуск агента анализа arXiv")
+    agent.update_status("starting", "Starting arXiv analysis agent")
 
     # Subscribe to events for new tasks
     event_bus = get_event_bus()
@@ -221,12 +224,12 @@ async def main():
     logger.debug("Background event processing started")
 
     # Main loop - periodic monitoring of active topics
-    agent.update_status("running", "Агент запущен и готов к работе")
+    agent.update_status("running", "Agent is running and ready to work")
 
     while True:
         try:
             logger.debug("Starting main agent loop iteration")
-            agent.update_status("checking_tasks", "Проверка необработанных задач")
+            agent.update_status("checking_tasks", "Checking unprocessed tasks")
 
             # Check unprocessed tasks
             await check_and_process_pending_tasks(agent)
@@ -234,9 +237,7 @@ async def main():
             # Perform periodic monitoring of active topics
             await periodic_monitoring(agent)
 
-            agent.update_status(
-                "idle", "Ожидание следующего цикла мониторинга (5 минут)"
-            )
+            agent.update_status("idle", "Waiting for next monitoring cycle (5 minutes)")
             logger.debug("Main loop iteration completed, sleeping for 5 minutes")
             await asyncio.sleep(300)  # Check every 5 minutes
 

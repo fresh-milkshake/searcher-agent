@@ -8,11 +8,19 @@ import sys
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from bot.utils import format_html
-from shared.database import db, Task, ResearchTopic, PaperAnalysis, ArxivPaper, init_db
+from bot.utils import escape_html
+from shared.database import (
+    db,
+    Task,
+    ResearchTopic,
+    PaperAnalysis,
+    ArxivPaper,
+    UserSettings,
+    init_db,
+)
 from peewee import DoesNotExist
 from shared.logger import get_logger
-from shared.event_system import get_event_bus, Event, task_events
+from shared.event_system import Event
 from bot.handlers import general_router, management_router
 
 load_dotenv()
@@ -42,10 +50,20 @@ async def handle_task_completion(event: Event):
             return
 
         # Check if database is already connected
-        if hasattr(db, "is_closed") and db.is_closed():
-            db.connect()
-        elif hasattr(db.database, "is_closed") and db.database.is_closed():
-            db.connect()
+        try:
+            if hasattr(db, "is_closed") and db.is_closed():
+                db.connect()
+            elif hasattr(db.database, "is_closed") and db.database.is_closed():
+                db.connect()
+        except Exception as e:
+            logger.warning(f"Database connection issue: {e}, retrying...")
+            # Wait a bit and retry
+            await asyncio.sleep(1)
+            try:
+                db.connect()
+            except Exception as e2:
+                logger.error(f"Failed to connect to database: {e2}")
+                return
 
         try:
             task = Task.get(Task.id == task_id)
@@ -69,18 +87,14 @@ async def handle_task_completion(event: Event):
                 # Monitoring start confirmation
                 await bot.send_message(
                     chat_id=user_id,
-                    text=format_html(
-                        "🤖 **Monitoring started!**\n\nAI agent has begun searching for relevant articles."
-                    ),
+                    text="🤖 <b>Monitoring started!</b>\n\nAI agent has begun searching for relevant articles.",
                     parse_mode="HTML",
                 )
 
             elif task_type in ["start_monitoring", "restart_monitoring"]:
                 # Monitoring setup confirmation
                 result_text = (
-                    format_html(result)
-                    if result
-                    else format_html("✅ Monitoring configured")
+                    escape_html(result) if result else "✅ Monitoring configured"
                 )
                 await bot.send_message(
                     chat_id=user_id, text=result_text, parse_mode="HTML"
@@ -90,7 +104,7 @@ async def handle_task_completion(event: Event):
                 # General responses for other task types
                 await bot.send_message(
                     chat_id=user_id,
-                    text=format_html(result),
+                    text=escape_html(result),
                     parse_mode="HTML",
                 )
 
@@ -131,25 +145,33 @@ async def send_analysis_report(user_id: int, analysis_id: int):
         topic = analysis.topic
 
         # Form report according to idea.md
+        # Handle published date - it might be a string or datetime
+        try:
+            if hasattr(paper.published, "strftime"):
+                published_date = paper.published.strftime("%d.%m.%Y")
+            else:
+                published_date = str(paper.published)
+        except Exception as e:
+            logger.error(f"Error getting published date: {e}")
+            published_date = "Not specified"
+
         report = f"""
-🔬 **Found topic intersection: "{topic.target_topic}" in area "{topic.search_area}"**
+🔬 <b>Found topic intersection: <u>"{topic.target_topic}"</u> in area <u>"{topic.search_area}"</u></b>
 
-📄 **Title:** {paper.title}
+📄 <b>Title:</b> <code>{paper.title}</code>
 
-👥 **Authors:** {paper.authors if paper.authors else 'Not specified'}
+👥 <b>Authors:</b> {', '.join(paper.authors) if paper.authors else 'Not specified'}
 
-📅 **Publication date:** {paper.published.strftime('%d.%m.%Y')}
+📅 <b>Publication date:</b> <code>{published_date}</code>
 
-📚 **arXiv category:** {paper.primary_category or 'Not specified'}
+📚 <b>arXiv category:</b> <code>{paper.primary_category or 'Not specified'}</code>
 
-🔗 **Link:** {paper.abs_url}
+🔗 <b>Link:</b> {paper.abs_url}
 
-📊 **Topic intersection analysis:**
-• Search area relevance: {analysis.search_area_relevance:.1f}%
-• Target topic content: {analysis.target_topic_relevance:.1f}%
-• **Overall score: {analysis.overall_relevance:.1f}%**
+📊 <b>Topic intersection analysis:</b>
+• Target topic relevance: {analysis.target_topic_relevance:.1f}%
 
-📋 **Brief summary:**
+📋 <b>Brief summary:</b>
 {analysis.summary or 'Analysis in progress'}
         """
 
@@ -158,7 +180,7 @@ async def send_analysis_report(user_id: int, analysis_id: int):
             try:
                 fragments = json.loads(analysis.key_fragments)
                 if fragments:
-                    report += "\n\n🔍 **Key fragments:**\n"
+                    report += "\n\n🔍 <b>Key fragments:</b>\n"
                     for fragment in fragments[:3]:  # Maximum 3 fragments
                         report += f"• {fragment}\n"
             except json.JSONDecodeError:
@@ -167,12 +189,17 @@ async def send_analysis_report(user_id: int, analysis_id: int):
         # Add contextual reasoning
         if analysis.contextual_reasoning:
             report += (
-                f"\n\n💡 **Contextual reasoning:**\n{analysis.contextual_reasoning}"
+                f"\n\n💡 <b>Contextual reasoning:</b>\n{analysis.contextual_reasoning}"
             )
+
+        # Clean HTML tags that are not supported by Telegram
+        import re
+
+        cleaned_report = re.sub(r"<think>.*?</think>", "", report, flags=re.DOTALL)
 
         await bot.send_message(
             chat_id=user_id,
-            text=format_html(report),
+            text=cleaned_report,
             parse_mode=ParseMode.HTML,
         )
 
@@ -188,25 +215,72 @@ async def send_analysis_report(user_id: int, analysis_id: int):
         # Don't close connection in exception handler either
 
 
+async def check_new_analyses():
+    """Background task to check for new analyses and send notifications"""
+    logger.info("Starting background analysis checker")
+
+    # Track last checked analysis ID
+    last_checked_id = 0
+
+    while True:
+        try:
+            # Check if database is already connected
+            if hasattr(db, "is_closed") and db.is_closed():
+                db.connect()
+
+            # Get new analyses that haven't been sent yet
+            new_analyses = (
+                PaperAnalysis.select(PaperAnalysis, ArxivPaper, ResearchTopic)
+                .join(ArxivPaper)
+                .switch(PaperAnalysis)
+                .join(ResearchTopic)
+                .where(
+                    PaperAnalysis.id > last_checked_id,  # type: ignore
+                    PaperAnalysis.status == "analyzed",  # Check for analyzed articles
+                    PaperAnalysis.overall_relevance >= 60.0,  # type: ignore
+                )
+                .order_by(PaperAnalysis.created_at.asc())
+            )
+
+            for analysis in new_analyses:
+                try:
+                    # Get user settings to check notification threshold
+                    user_id = analysis.topic.user_id
+                    settings = UserSettings.get(UserSettings.user_id == user_id)
+
+                    # Check if analysis meets instant notification threshold
+                    if (
+                        analysis.overall_relevance
+                        >= settings.instant_notification_threshold
+                    ):
+                        logger.info(
+                            f"Found new high-relevance analysis {analysis.id} for user {user_id}"
+                        )
+                        await send_analysis_report(user_id, analysis.id)
+
+                    last_checked_id = max(last_checked_id, analysis.id)
+
+                except Exception as e:
+                    logger.error(f"Error processing analysis {analysis.id}: {e}")
+
+            # Wait before next check
+            await asyncio.sleep(10)  # Check every 10 seconds
+
+        except Exception as e:
+            logger.error(f"Error in background analysis checker: {e}")
+            await asyncio.sleep(30)  # Wait longer on error
+
+
 async def main() -> None:
     logger.info("Starting Telegram bot...")
 
     init_db()
     logger.info("Database initialized for bot")
 
-    # Get event bus and subscribe to task completions
-    logger.info("Getting event bus...")
-    event_bus = get_event_bus()
-    logger.info("Event bus obtained successfully")
-
-    logger.info("Subscribing to task completions...")
-    task_events.subscribe_to_completions(handle_task_completion)
-    logger.info("Successfully subscribed to task completions")
-
-    # Start event processing in background
-    logger.info("Starting event processing in background...")
-    asyncio.create_task(event_bus.start_processing(poll_interval=0.5))
-    logger.info("Background event processing started")
+    # Start background task to check for new analyses
+    logger.info("Starting background analysis checker...")
+    asyncio.create_task(check_new_analyses())
+    logger.info("Background analysis checker started")
 
     logger.info("Telegram bot ready to work")
 

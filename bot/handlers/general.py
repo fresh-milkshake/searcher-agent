@@ -4,7 +4,6 @@ from datetime import datetime
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message
 from aiogram.enums import ParseMode
-from bot.utils import format_html
 from shared.database import (
     db,
     ResearchTopic,
@@ -32,7 +31,7 @@ async def command_start_handler(message: Message) -> None:
 
 I can find intersections between scientific fields and discover interesting interdisciplinary research.
 
-📋 **Available commands:**
+📋 <b>Available commands:</b>
 
 🎯 /topic "target topic" "search area" - set topics for analysis
 📊 /status - current monitoring status  
@@ -42,13 +41,13 @@ I can find intersections between scientific fields and discover interesting inte
 📚 /history - recent found intersections
 ⚙️ /settings - filtering settings
 
-**Usage example:**
+<b>Usage example:</b>
 /topic "machine learning" "medicine"
 
 This will find articles in the field of medicine that use machine learning methods.
     """
 
-    await message.answer(format_html(help_text), parse_mode=ParseMode.HTML)
+    await message.answer(help_text, parse_mode=ParseMode.HTML)
 
 
 @router.message(Command("status"))
@@ -56,11 +55,14 @@ async def command_status_handler(message: Message) -> None:
     """Show current monitoring status"""
     try:
         if not message.from_user:
-            await message.answer("Error: could not determine user\\.")
+            await message.answer("Error: could not determine user.")
             return
 
         user_id = message.from_user.id
-        db.connect()
+
+        # Check if database is already connected
+        if hasattr(db, "is_closed") and db.is_closed():
+            db.connect()
 
         # Get active topic
         try:
@@ -103,75 +105,71 @@ async def command_status_handler(message: Message) -> None:
                 time_diff = datetime.now() - agent_status.last_activity
 
                 if time_diff.total_seconds() < 600:  # Less than 10 minutes
-                    agent_active = "🟢 Активен"
+                    agent_active = "🟢 Active"
                     activity_info = (
-                        f"🔄 **Текущая активность:** {agent_status.activity}"
+                        f"🔄 <b>Current activity:</b> {agent_status.activity}"
                     )
 
                     # Show current processing info if available
                     if agent_status.current_user_id:
                         if agent_status.current_user_id == user_id:
-                            activity_info += "\n📍 **Обрабатывает ваши топики**"
+                            activity_info += "\n📍 <b>Processing your topics</b>"
                         else:
-                            activity_info += f"\n📍 **Обрабатывает топики пользователя {agent_status.current_user_id}**"
+                            activity_info += f"\n📍 <b>Processing topics for user {agent_status.current_user_id}</b>"
 
-                    session_info = "📊 **Статистика сессии:**\n"
+                    session_info = "📊 <b>Session statistics:</b>\n"
                     session_info += (
-                        f"• Обработано статей: {agent_status.papers_processed}\n"
+                        f"• Papers processed: {agent_status.papers_processed}\n"
                     )
                     session_info += (
-                        f"• Найдено релевантных: {agent_status.papers_found}\n"
+                        f"• Relevant papers found: {agent_status.papers_found}\n"
                     )
-                    session_info += f"• Запущен: {agent_status.session_start.strftime('%d.%m.%Y %H:%M')}"
+                    session_info += f"• Started: {agent_status.session_start.strftime('%d.%m.%Y %H:%M')}"
 
                 else:
-                    agent_active = "🔴 Неактивен"
-                    activity_info = f"⏰ **Последняя активность:** {agent_status.last_activity.strftime('%d.%m.%Y %H:%M')}"
+                    agent_active = "🔴 Inactive"
+                    activity_info = f"⏰ <b>Last activity:</b> {agent_status.last_activity.strftime('%d.%m.%Y %H:%M')}"
                     session_info = ""
 
                 agent_info = f"""
 
-🤖 **Статус AI агента:** {agent_active}
+🤖 <b>AI Agent Status:</b> {agent_active}
 {activity_info}
 {session_info}
 """
             except DoesNotExist:
-                agent_info = "\n🤖 **Статус AI агента:** ❓ Неизвестен"
+                agent_info = "\n🤖 <b>AI Agent Status:</b> ❓ Unknown"
 
             status_text = f"""
-📊 **Статус мониторинга**
+📊 <b>Monitoring Status</b>
 
-🎯 **Целевая тема:** {topic.target_topic}
-🔍 **Область поиска:** {topic.search_area}
-📅 **Создан:** {topic.created_at.strftime('%d.%m.%Y %H:%M')}
+🎯 <b>Target Topic:</b> {topic.target_topic}
+🔍 <b>Search Area:</b> {topic.search_area}
+📅 <b>Created:</b> {topic.created_at.strftime('%d.%m.%Y %H:%M')}
 
-🤖 **Мониторинг:** {monitoring_status}
-📈 **Статей проанализировано:** {analyses_count}
-⭐ **Найдено релевантных:** {relevant_count}
+🤖 <b>Monitoring:</b> {monitoring_status}
+📈 <b>Papers Analyzed:</b> {analyses_count}
+⭐ <b>Relevant Found:</b> {relevant_count}
 {agent_info}
 
-🔧 Используйте /settings для настройки параметров
+🔧 Use /settings to configure parameters
             """
 
-            await message.answer(
-                format_html(status_text), parse_mode=ParseMode.HTML
-            )
+            await message.answer(status_text, parse_mode=ParseMode.HTML)
 
         except DoesNotExist:
             await message.answer(
-                format_html(
-                    "❌ **Topics not set**\n\n"
-                    'Use command /topic "target topic" "search area" '
-                    "to start monitoring\\."
-                ),
+                "❌ <b>Topics not set</b>\n\n"
+                'Use command /topic "target topic" "search area" '
+                "to start monitoring.",
                 parse_mode=ParseMode.HTML,
             )
 
-        db.close()
+        # Don't close connection here - let the caller manage it
 
     except Exception as e:
         logger.error(f"Error in /status command: {e}")
-        await message.answer("❌ An error occurred while getting status\\.")
+        await message.answer("❌ An error occurred while getting status.")
 
 
 @router.message(Command("history"))
@@ -179,11 +177,14 @@ async def command_history_handler(message: Message) -> None:
     """Show recent found topic intersections"""
     try:
         if not message.from_user:
-            await message.answer("Error: could not determine user\\.")
+            await message.answer("Error: could not determine user.")
             return
 
         user_id = message.from_user.id
-        db.connect()
+
+        # Check if database is already connected
+        if hasattr(db, "is_closed") and db.is_closed():
+            db.connect()
 
         # Get last 5 relevant analyses
         analyses = (
@@ -201,14 +202,14 @@ async def command_history_handler(message: Message) -> None:
 
         if not analyses:
             await message.answer(
-                format_html("📚 **History is empty**\n\n"
-                "Relevant articles not found yet\\.\n"
-                "Try expanding search criteria through /settings\\."),
+                "📚 <b>History is empty</b>\n\n"
+                "Relevant articles not found yet.\n"
+                "Try expanding search criteria through /settings.",
                 parse_mode=ParseMode.HTML,
             )
             return
 
-        history_text = "📚 **Recent found topic intersections:**\n\n"
+        history_text = "📚 <b>Recent found topic intersections:</b>\n\n"
 
         for analysis in analyses:
             paper = analysis.paper
@@ -222,21 +223,19 @@ async def command_history_handler(message: Message) -> None:
             )
 
             history_text += f"""
-📄 **{title_preview}**
+📄 <b>{title_preview}</b>
 👥 {authors_preview}
 📊 Relevance: {analysis.overall_relevance:.1f}%
 📅 {analysis.created_at.strftime('%d.%m.%Y')}
 🔗 {paper.abs_url}
 
 """
-        await message.answer(
-            format_html(history_text), parse_mode=ParseMode.HTML
-        )
-        db.close()
+        await message.answer(history_text, parse_mode=ParseMode.HTML)
+        # Don't close connection here - let the caller manage it
 
     except Exception as e:
         logger.error(f"Error in /history command: {e}")
-        await message.answer("❌ An error occurred while getting history\\.")
+        await message.answer("❌ An error occurred while getting history.")
 
 
 @router.message()
@@ -245,17 +244,17 @@ async def unknown_message_handler(message: Message) -> None:
     try:
         if not message.from_user or not message.from_user.id:
             logger.warning("Received message without user information")
-            await message.answer("Error: could not determine user\\.")
+            await message.answer("Error: could not determine user.")
             return
 
         await message.answer(
-            format_html("❓ **Unknown command**\n\n"
-            "Use /start to view available commands\\.\n\n"
-            "🔬 I specialize in analyzing arXiv scientific articles\\. "
-            "Set topics for analysis with /topic command\\."),
+            "❓ <b>Unknown command</b>\n\n"
+            "Use /start to view available commands.\n\n"
+            "🔬 I specialize in analyzing arXiv scientific articles. "
+            "Set topics for analysis with /topic command.",
             parse_mode=ParseMode.HTML,
         )
 
     except Exception as e:
         logger.error(f"Error processing unknown message: {e}")
-        await message.answer("❌ An error occurred while processing message\\.")
+        await message.answer("❌ An error occurred while processing message.")

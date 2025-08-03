@@ -158,7 +158,9 @@ class EventBus:
             self.subscribers[event_type] = []
 
         self.subscribers[event_type].append(callback)
-        logger.info(f"Added subscription to event {event_type.value}")
+        logger.info(
+            f"Added subscription to event {event_type.value} (total subscribers: {len(self.subscribers[event_type])})"
+        )
 
     def unsubscribe(self, event_type: EventType, callback: Callable):
         """
@@ -204,7 +206,7 @@ class EventBus:
     async def _process_events(self):
         """Process unprocessed events"""
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = sqlite3.connect(self.db_path, timeout=30.0)  # Increase timeout
             cursor = conn.cursor()
 
             # Get unprocessed events
@@ -242,7 +244,7 @@ class EventBus:
                     )
 
                     # Call subscribers
-                    if event_type in self.subscribers:
+                    if event_type in self.subscribers and self.subscribers[event_type]:
                         logger.info(
                             f"Found {len(self.subscribers[event_type])} subscribers for event {event_type.value}"
                         )
@@ -331,9 +333,18 @@ def get_event_bus() -> EventBus:
     """Get global event bus instance"""
     global _event_bus
     if _event_bus is None:
-        # Use fixed path for all processes
-        _event_bus = EventBus(db_path="events.db")
-        logger.info("Created new EventBus instance with path: events.db")
+        # Use absolute path for all processes to share the same event database
+        import os
+
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        events_db_path = os.path.join(base_dir, "events.db")
+        _event_bus = EventBus(db_path=events_db_path)
+        logger.info(f"Created new EventBus instance with path: {events_db_path}")
+
+        # Initialize subscribers dictionary if not exists
+        if not hasattr(_event_bus, "subscribers"):
+            _event_bus.subscribers = {}
+
     return _event_bus
 
 

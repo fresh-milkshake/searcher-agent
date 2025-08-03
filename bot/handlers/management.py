@@ -5,7 +5,7 @@ from aiogram.enums import ParseMode
 import re
 import json
 
-from bot.utils import format_html
+from bot.utils import escape_html
 from shared.database import db, ResearchTopic, UserSettings, Task
 from peewee import DoesNotExist
 from shared.logger import get_logger
@@ -21,7 +21,7 @@ async def command_topic_handler(message: Message) -> None:
     """Handler for /topic command to set analysis topics"""
     try:
         if not message.from_user:
-            await message.answer("Error: could not determine user\\.")
+            await message.answer("Error: could not determine user.")
             return
 
         user_id = message.from_user.id
@@ -33,7 +33,7 @@ async def command_topic_handler(message: Message) -> None:
 
         if not match:
             message_text = (
-                "❌ Invalid command format\\.\n\n"
+                "❌ Invalid command format.\n\n"
                 "✅ Correct format:\n"
                 '/topic "target topic" "search area"\n\n'
                 "📝 Examples:\n"
@@ -48,7 +48,7 @@ async def command_topic_handler(message: Message) -> None:
         search_area = match.group(2).strip()
 
         if len(target_topic) < 2 or len(search_area) < 2:
-            await message.answer("❌ Topics must contain at least 3 characters\\.")
+            await message.answer("❌ Topics must contain at least 3 characters.")
             return
 
         db.connect()
@@ -94,23 +94,21 @@ async def command_topic_handler(message: Message) -> None:
         )
 
         message_text = (
-            f"✅ **Analysis topics set**\n\n"
-            f"🎯 **Target topic:** {format_html(target_topic)}\n"
-            f"🔍 **Search area:** {format_html(search_area)}\n\n"
-            f"🤖 AI agent has started monitoring arXiv for topic intersections\\.\n"
-            f"📬 I will send notifications about found relevant articles\\.\n\n"
-            f"📊 Use `/status` to check status\\."
+            f"✅ <b>Analysis topics set</b>\n\n"
+            f"🎯 <b>Target topic:</b> {escape_html(target_topic)}\n"
+            f"🔍 <b>Search area:</b> {escape_html(search_area)}\n\n"
+            f"🤖 AI agent has started monitoring arXiv for topic intersections.\n"
+            f"📬 I will send notifications about found relevant articles.\n\n"
+            f"📊 Use `/status` to check status."
         )
 
-        await message.answer(
-            format_html(message_text), parse_mode=ParseMode.HTML
-        )
+        await message.answer(message_text, parse_mode=ParseMode.HTML)
 
         db.close()
 
     except Exception as e:
         logger.error(f"Error in /topic command: {e}")
-        await message.answer("❌ An error occurred while setting topics\\.")
+        await message.answer("❌ An error occurred while setting topics.")
 
 
 @router.message(Command("switch_themes"))
@@ -118,7 +116,7 @@ async def command_switch_themes_handler(message: Message) -> None:
     """Swap target topic and search area"""
     try:
         if not message.from_user:
-            await message.answer("Error: could not determine user\\.")
+            await message.answer("Error: could not determine user.")
             return
 
         user_id = message.from_user.id
@@ -158,21 +156,17 @@ async def command_switch_themes_handler(message: Message) -> None:
             )
 
             message_text = (
-                f"🔄 **Topics swapped**\n\n"
-                f"🎯 **New target topic:** {format_html(topic.target_topic)}\n"
-                f"🔍 **New search area:** {format_html(topic.search_area)}\n\n"
-                f"🤖 Monitoring restarted with new parameters\\."
+                f"🔄 <b>Topics swapped</b>\n\n"
+                f"🎯 <b>New target topic:</b> {escape_html(topic.target_topic)}\n"
+                f"🔍 <b>New search area:</b> {escape_html(topic.search_area)}\n\n"
+                f"🤖 Monitoring restarted with new parameters."
             )
 
-            await message.answer(
-                format_html(message_text), parse_mode=ParseMode.HTML
-            )
+            await message.answer(message_text, parse_mode=ParseMode.HTML)
 
         except DoesNotExist:
             await message.answer(
-                format_html(
-                    "❌ **Topics not set**\n\n" "First use /topic to set topics\\."
-                ),
+                "❌ <b>Topics not set</b>\n\n" "First use /topic to set topics.",
                 parse_mode=ParseMode.HTML,
             )
 
@@ -180,7 +174,7 @@ async def command_switch_themes_handler(message: Message) -> None:
 
     except Exception as e:
         logger.error(f"Error in /switch_themes command: {e}")
-        await message.answer("❌ An error occurred while switching topics\\.")
+        await message.answer("❌ An error occurred while switching topics.")
 
 
 @router.message(Command("pause"))
@@ -188,7 +182,7 @@ async def command_pause_handler(message: Message) -> None:
     """Pause monitoring"""
     try:
         if not message.from_user:
-            await message.answer("Error: could not determine user\\.")
+            await message.answer("Error: could not determine user.")
             return
 
         user_id = message.from_user.id
@@ -200,18 +194,18 @@ async def command_pause_handler(message: Message) -> None:
             settings.save()
 
             await message.answer(
-                format_html("⏸️ **Monitoring paused**\n\n" "Use /resume to resume\\."),
+                "⏸️ <b>Monitoring paused</b>\n\n" "Use /resume to resume.",
                 parse_mode=ParseMode.HTML,
             )
 
         except DoesNotExist:
-            await message.answer("❌ User settings not found\\.")
+            await message.answer("❌ User settings not found.")
 
         db.close()
 
     except Exception as e:
         logger.error(f"Error in /pause command: {e}")
-        await message.answer("❌ An error occurred while pausing\\.")
+        await message.answer("❌ An error occurred while pausing.")
 
 
 @router.message(Command("resume"))
@@ -219,7 +213,7 @@ async def command_resume_handler(message: Message) -> None:
     """Resume monitoring"""
     try:
         if not message.from_user:
-            await message.answer("Error: could not determine user\\.")
+            await message.answer("Error: could not determine user.")
             return
 
         user_id = message.from_user.id
@@ -231,19 +225,19 @@ async def command_resume_handler(message: Message) -> None:
             settings.save()
 
             await message.answer(
-                format_html("▶️ **Monitoring resumed**\n\n"
-                "AI agent has continued searching for relevant articles\\."),
+                "▶️ <b>Monitoring resumed</b>\n\n"
+                "AI agent has continued searching for relevant articles.",
                 parse_mode=ParseMode.HTML,
             )
 
         except DoesNotExist:
-            await message.answer("❌ User settings not found\\.")
+            await message.answer("❌ User settings not found.")
 
         db.close()
 
     except Exception as e:
         logger.error(f"Error in /resume command: {e}")
-        await message.answer("❌ An error occurred while resuming\\.")
+        await message.answer("❌ An error occurred while resuming.")
 
 
 @router.message(Command("settings"))
@@ -251,7 +245,7 @@ async def command_settings_handler(message: Message) -> None:
     """Show current settings"""
     try:
         if not message.from_user:
-            await message.answer("Error: could not determine user\\.")
+            await message.answer("Error: could not determine user.")
             return
 
         user_id = message.from_user.id
@@ -266,29 +260,29 @@ async def command_settings_handler(message: Message) -> None:
         status_text = "Enabled" if settings.monitoring_enabled else "Disabled"
 
         settings_text = f"""
-⚙️ **Analysis Settings**
+⚙️ <b>Analysis Settings</b>
 
-📊 **Relevance Thresholds:**
+📊 <b>Relevance Thresholds:</b>
 • Search Area: {settings.min_search_area_relevance:.1f}%
 • Target Topic: {settings.min_target_topic_relevance:.1f}%
 • Overall Score: {settings.min_overall_relevance:.1f}%
 
-🔔 **Notifications:**
+🔔 <b>Notifications:</b>
 • Instant: ≥{settings.instant_notification_threshold:.1f}%
 • Daily Digest: ≥{settings.daily_digest_threshold:.1f}%
 • Weekly Digest: ≥{settings.weekly_digest_threshold:.1f}%
 
-⏰ **Time Filters:**
+⏰ <b>Time Filters:</b>
 • Search Depth: {settings.days_back_to_search} days
 
-🤖 **Status:** {format_html(status_text)}
+🤖 <b>Status:</b> {escape_html(status_text)}
 
-💡 Contact the developer to change settings\\.
+💡 Contact the developer to change settings.
         """
 
-        await message.answer(format_html(settings_text), parse_mode=ParseMode.HTML)
+        await message.answer(settings_text, parse_mode=ParseMode.HTML)
         db.close()
 
     except Exception as e:
         logger.error(f"Error in /settings command: {e}")
-        await message.answer("❌ An error occurred while getting settings\\.")
+        await message.answer("❌ An error occurred while getting settings.")

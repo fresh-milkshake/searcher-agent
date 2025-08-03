@@ -61,6 +61,7 @@ class ArxivParser:
         categories: Optional[List[str]] = None,
         date_from: Optional[datetime] = None,
         date_to: Optional[datetime] = None,
+        start: int = 0,
     ) -> List[ArxivPaper]:
         """
         Search articles by query
@@ -73,6 +74,7 @@ class ArxivParser:
             categories: Category filter (e.g., ['cs.AI', 'cs.LG'])
             date_from: Date filter (from)
             date_to: Date filter (to)
+            start: Starting index for pagination (default 0)
 
         Returns:
             List of ArxivPaper objects
@@ -91,13 +93,28 @@ class ArxivParser:
                 sort_order=sort_order,
             )
 
-            # Execute search
+            # Execute search with pagination support
             results = []
+            processed_count = 0
+            skipped_count = 0
+
             for result in self.client.results(search):
+                # Skip results until we reach the start position
+                if skipped_count < start:
+                    skipped_count += 1
+                    continue
+
+                # Stop when we have enough results
+                if processed_count >= max_results:
+                    break
+
                 paper = self._convert_to_arxiv_paper(result)
                 results.append(paper)
+                processed_count += 1
 
-            logger.info(f"Found {len(results)} articles for query: {query}")
+            logger.info(
+                f"Found {len(results)} articles for query: {query} (start={start}, skipped={skipped_count})"
+            )
             return results
 
         except Exception as e:
