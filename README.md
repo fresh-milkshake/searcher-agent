@@ -1,182 +1,92 @@
-# 🔬 Automatic arXiv Scientific Article Analysis System
+# Searcher Agent
 
-Intelligent system for finding intersections between scientific fields and discovering interdisciplinary research on arXiv.
+AI-powered system for finding interdisciplinary research on arXiv - discovers where one scientific topic is applied in another field.
 
-## 🎯 Description
+## What It Does
 
-The system analyzes scientific publications on arXiv and finds articles where one scientific topic is applied in the context of another field. For example, how machine learning is used in medicine, or how quantum computing is applied in cryptography.
+Automatically analyzes arXiv papers to find intersections between scientific fields. For example:
+- Machine learning applications in medicine
+- Quantum computing in cryptography  
+- Blockchain technology in logistics
 
-## 🏗️ Architecture
+## Quick Setup
 
-The system is built on a microservice architecture:
+### 1. Install Dependencies
 
-### 📱 TelegramBot (User Interface)
-- Provides interaction through Telegram API
-- Accepts commands and sends notifications
-- Works independently of AI agent state
+```bash
+# Install uv package manager
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-### 🤖 AI Agent (Analytical Module)
-- Performs intelligent analysis of publications
-- Works autonomously in background mode
-- Supports hot-reload configuration
-
-**Advantages:** Each service can be deployed, updated, or restarted independently.
-
-## 🔄 Workflow
-
-### 1. Setting Analysis Topics
-```
-/topic "target topic" "search area"
+# Install project dependencies
+uv sync
 ```
 
-**Two-level search system:**
-- **Target topic** — what we want to find
-- **Search area** — scientific field for search
+### 2. Configure Environment
 
-**Examples:**
-- `/topic "machine learning" "medicine"`
-- `/topic "quantum computing" "cryptography"`
-- `/topic "blockchain" "logistics"`
+Create `.env` file:
 
-### 2. Automatic Analysis
+```ini
+TELEGRAM_BOT_TOKEN=telegram-token-here
+# if you have an API key for OpenAI:
+# OPENAI_API_KEY=your-openai-key-here
+# if you use other providers:
+# OPENAI_API_KEY=
+OPENAI_API_KEY=your-openai-key-here
+OPENROUTER_API_KEY=openrouter-key-here
+DATABASE_PATH=database.db
+```
 
-**Stage 1: Search Area Filtering**
-- Search for articles in the specified scientific field
-- Analysis of metadata and abstracts
-- Primary filtering by relevance
+### 3. Run the System
+```bash
+# Start both bot and agent
+python main.py
 
-**Stage 2: Target Topic Search**
-- Deep analysis for target topic content
-- Multi-level intelligent analysis:
-  - Contextual filtering
-  - Semantic intersection analysis
-  - Deep contextual analysis
+# Or run separately:
+python start_bot.py    # Telegram bot only
+python start_agent.py  # AI agent only
+```
 
-### 3. Structured Reports
+## How to Use
 
-When a relevant article is found, the system generates a report:
+### Set Search Topics
+
+```
+/topic "machine learning" "medicine"
+```
+
+### Basic Commands
+
+- `/start` - Help and command list
+- `/topic "topic1" "topic2"` - Set analysis topics
+- `/status` - Current monitoring status
+- `/pause` / `/resume` - Control monitoring
+- `/history` - View recent findings
+
+## Architecture
+
+- **`bot/`** - Telegram bot interface
+- **`agent/`** - AI analysis engine  
+- **`shared/`** - Common modules (database, LLM, arXiv)
+
+## Example Output
 
 ```
 🔬 Found topic intersection: "machine learning" in area "medicine"
 
-📄 Title: Deep Learning for Medical Image Analysis
-👥 Authors: John Smith, Jane Doe
-📅 Publication date: 15.01.2024
-📚 arXiv category: cs.CV
-🔗 Link: https://arxiv.org/abs/2401.12345
+📄 Title: AI and Medicine
+👥 Authors: Mihai Nadin
+📅 Publication date: 2019-12-05 21:58:18+00:00
+📚 arXiv category: q-bio.OT
+
+🔗 Link: http://arxiv.org/abs/2001.00641v1
 
 📊 Topic intersection analysis:
-• Search area relevance: 95.0%
-• Target topic content: 88.0%
-• Overall score: 90.6%
+• Target topic relevance: 95.0%
 
 📋 Brief summary:
-The article demonstrates the application of deep learning for medical image analysis,
-showing significant improvements in diagnosis compared to traditional methods.
+Machine learning is increasingly applied in medicine for diagnostic imaging, predictive analytics, and treatment optimization. The approach demonstrates high innovativeness through deep learning algorithms that can match or exceed human performance in specific medical tasks. Practical significance:
 ```
 
-## 📋 Commands
+## License
 
-### Basic Commands
-- `/start` — Help and command list
-- `/topic "topic1" "topic2"` — Set topics for analysis
-- `/status` — Current monitoring status
-- `/history` — Recent found intersections
-
-### Monitoring Management
-- `/pause` — Pause analysis
-- `/resume` — Resume work
-- `/switch_themes` — Swap topics
-
-### Settings
-- `/settings` — View filtering settings
-
-## ⚙️ Filtering Settings
-
-- **Relevance thresholds** for each topic separately
-- **Notifications:**
-  - Instant (≥80% relevance)
-  - Daily digest (≥50% relevance)
-  - Weekly digest (≥30% relevance)
-- **Time filters** (search depth in days)
-
-## 🚀 Installation and Setup
-
-### Requirements
-- Python 3.13+
-- OpenAI API key or local LLM (Ollama)
-
-### Installing Dependencies
-```bash
-# Install uv (recommended)
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Install dependencies
-uv sync
-```
-
-### Environment Variables Setup
-Create a `.env` file:
-```env
-TELEGRAM_BOT_TOKEN=your_telegram_bot_token
-OPENAI_API_KEY=your_openai_api_key
-DATABASE_PATH=database.db
-```
-
-### Running the System
-```bash
-# Run all services
-python main.py
-
-# Or run individual components
-python start_bot.py     # Telegram bot only
-python start_agent.py   # AI Agent only
-```
-
-## 📊 System Capabilities
-
-- ✅ Automatic arXiv monitoring
-- ✅ Two-stage relevance analysis
-- ✅ Intelligent reports with scores
-- ✅ Flexible filtering settings
-- ✅ Multi-level notifications
-- ✅ History of found intersections
-- ✅ Independent microservices
-
-## 🛠️ Technologies
-
-- **Backend:** Python, asyncio, Peewee ORM
-- **Telegram Bot:** aiogram 3.x
-- **AI/LLM:** OpenAI GPT / Ollama
-- **Database:** SQLite
-- **arXiv API:** arxiv-py
-- **PDF parsing:** PyPDF2
-
-## 📝 Usage Examples
-
-1. **Finding AI applications in medicine:**
-   ```
-   /topic "artificial intelligence" "medicine"
-   ```
-
-2. **Blockchain in finance:**
-   ```
-   /topic "blockchain" "finance"
-   ```
-
-3. **Quantum computing in cryptography:**
-   ```
-   /topic "quantum computing" "cryptography"
-   ```
-
-## 📈 Statistics and Analytics
-
-The system tracks statistics on:
-- Number of analyzed articles
-- Found relevant intersections
-- Trends in interdisciplinary research
-- Maps of relationships between scientific fields
-
----
-
-**Created for researchers who want to stay informed about interdisciplinary breakthroughs in science.**
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
