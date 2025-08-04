@@ -153,6 +153,19 @@ class AgentStatus(BaseModel):
     updated_at = DateTimeField(default=datetime.now)
 
 
+def ensure_connection():
+    """Ensure database connection is open, handling connection conflicts gracefully"""
+    try:
+        if hasattr(db, "is_closed") and db.is_closed():
+            db.connect()
+        elif hasattr(db.database, "is_closed") and db.database.is_closed():
+            db.connect()
+    except Exception as e:
+        # If connection is already open, this is fine
+        if "already opened" not in str(e).lower():
+            raise e
+
+
 def init_db():
     db.connect()
     db.create_tables(

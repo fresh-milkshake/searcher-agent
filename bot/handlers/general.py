@@ -11,6 +11,7 @@ from shared.database import (
     PaperAnalysis,
     ArxivPaper,
     AgentStatus,
+    ensure_connection,
 )
 from peewee import DoesNotExist
 from shared.logger import get_logger
@@ -60,9 +61,8 @@ async def command_status_handler(message: Message) -> None:
 
         user_id = message.from_user.id
 
-        # Check if database is already connected
-        if hasattr(db, "is_closed") and db.is_closed():
-            db.connect()
+        # Ensure database connection
+        ensure_connection()
 
         # Get active topic
         try:
@@ -182,9 +182,8 @@ async def command_history_handler(message: Message) -> None:
 
         user_id = message.from_user.id
 
-        # Check if database is already connected
-        if hasattr(db, "is_closed") and db.is_closed():
-            db.connect()
+        # Ensure database connection
+        ensure_connection()
 
         # Get last 5 relevant analyses
         analyses = (

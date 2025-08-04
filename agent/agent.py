@@ -57,7 +57,9 @@ Assess the presence of the topic from 0 to 100%, where:
 - 30-49%: the topic is mentioned but not central
 - 0-29%: the topic is not mentioned or only briefly mentioned
 
-Provide your assessment with confidence level, key mentions found, and concise reasoning (max 100 chars).
+IMPORTANT: Always return valid JSON without any line breaks or special characters in string values. Keep reasoning under 100 characters.
+
+Provide your assessment with confidence level, key mentions found, and concise reasoning.
             """,
         )
 
@@ -76,7 +78,9 @@ Analyze and provide:
 4. Key applications or methods mentioned
 5. Overall recommendation for relevance
 
-Use a professional scientific style, be specific and concise. Keep summary under 300 characters.
+IMPORTANT: Always return valid JSON without any line breaks or special characters in string values. Keep summary under 300 characters.
+
+Use a professional scientific style, be specific and concise.
             """,
         )
 
@@ -101,6 +105,9 @@ Use a professional scientific style, be specific and concise. Keep summary under
             elif task.task_type == "restart_monitoring":
                 logger.debug("Task type: restart_monitoring")
                 return await self.restart_monitoring(task_data)
+            elif task.task_type == "analysis_complete":
+                logger.debug("Task type: analysis_complete - notification task")
+                return "Analysis notification processed"
             else:
                 logger.warning(f"Unknown task type: {task.task_type}")
                 return f"Unknown task type: {task.task_type}"
@@ -237,14 +244,16 @@ Use a professional scientific style, be specific and concise. Keep summary under
 
                 search_offset += 20  # Move to next batch
 
-                # Wait between search cycles to avoid overloading
-                await asyncio.sleep(30)  # Wait 30 seconds between cycles
+                # Wait between search cycles to avoid overloading and rate limiting
+                await asyncio.sleep(60)  # Wait 60 seconds between cycles to avoid rate limits
 
             except Exception as e:
                 logger.error(
                     f"Error in continuous monitoring loop for user {user_id}: {e}"
                 )
+                # Don't break the loop on errors, just wait and continue
                 await asyncio.sleep(60)  # Wait longer on error
+                continue
 
         logger.info(f"Continuous monitoring loop ended for user {user_id}")
 
@@ -335,6 +344,10 @@ Use a professional scientific style, be specific and concise. Keep summary under
                 await self.analyze_single_paper(
                     paper, user_id, topic_id, target_topic, search_area
                 )
+                
+                # Add delay between articles to avoid rate limiting
+                if idx < len(papers) - 1:  # Don't delay after the last article
+                    await asyncio.sleep(2)  # 2 second delay between articles
 
             logger.info(f"Completed analysis cycle {cycle_num} for user {user_id}")
             logger.debug(
@@ -418,7 +431,7 @@ Primary category: {paper_data.primary_category or 'Not specified'}
             # Analyze target topic presence (area relevance is assumed since we search by keywords)
             topic_query = f"Target topic: {target_topic}\n\nArticle:\n{paper_content}"
             logger.debug(f"Sending topic_analyzer request for article {paper_data.id}")
-            topic_result = await Runner.run(self.topic_analyzer, topic_query)
+            topic_result = await self._run_llm_with_retry(self.topic_analyzer, topic_query)
             logger.debug(f"topic_analyzer result: {topic_result.final_output}")
             logger.info(
                 f"AI response (topic_analyzer) for article {paper_data.id}: {topic_result.final_output}"
@@ -480,7 +493,7 @@ Create a brief report on topic intersection.
                 logger.debug(
                     f"Sending report_generator request for article {paper_data.id}"
                 )
-                report_result = await Runner.run(self.report_generator, report_query)
+                report_result = await self._run_llm_with_retry(self.report_generator, report_query)
                 logger.debug(f"report_generator result: {report_result.final_output}")
                 logger.info(
                     f"AI response (report_generator) for article {paper_data.id}: {report_result.final_output}"
@@ -539,6 +552,8 @@ Create a brief report on topic intersection.
 
         except Exception as e:
             logger.error(f"Error analyzing article {paper_data.id}: {e}")
+            # Don't re-raise the exception to avoid stopping the entire monitoring loop
+            # Just log the error and continue with the next article
 
     async def _send_analysis_notification(
         self, user_id: int, analysis_id: int, relevance: float, settings: UserSettings
@@ -628,6 +643,44 @@ Create a brief report on topic intersection.
     def increment_papers_found(self):
         """Increment found papers counter"""
         self.papers_found_session += 1
+
+    async def _run_llm_with_retry(self, agent, query: str, max_retries: int = 3, base_delay: float = 2.0):
+        """Run LLM with retry logic for rate limiting and other transient errors"""
+        for attempt in range(max_retries):
+            try:
+                result = await Runner.run(agent, query)
+                return result
+            except Exception as e:
+                error_str = str(e).lower()
+                
+                # Check if it's a rate limit error
+                if "rate limit" in error_str or "429" in error_str:
+                    if attempt < max_retries - 1:
+                        # Calculate exponential backoff delay
+                        delay = base_delay * (2 ** attempt)
+                        logger.warning(f"Rate limit hit, retrying in {delay}s (attempt {attempt + 1}/{max_retries})")
+                        await asyncio.sleep(delay)
+                        continue
+                    else:
+                        logger.error(f"Rate limit exceeded after {max_retries} attempts: {e}")
+                        raise
+                
+                # Check if it's a JSON parsing error
+                elif "json" in error_str and ("invalid" in error_str or "parse" in error_str):
+                    if attempt < max_retries - 1:
+                        logger.warning(f"JSON parsing error, retrying (attempt {attempt + 1}/{max_retries}): {e}")
+                        await asyncio.sleep(1)
+                        continue
+                    else:
+                        logger.error(f"JSON parsing failed after {max_retries} attempts: {e}")
+                        raise
+                
+                # For other errors, don't retry
+                else:
+                    logger.error(f"Non-retryable error: {e}")
+                    raise
+        
+        raise Exception(f"Failed after {max_retries} attempts")
 
     def _extract_percentage(self, text: str) -> float:
         """Extracts percentage from AI response text"""

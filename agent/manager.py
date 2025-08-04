@@ -192,6 +192,8 @@ async def periodic_monitoring(agent: ArxivAnalysisAgent):
 
             except Exception as e:
                 logger.error(f"Error monitoring topic {topic.id}: {e}")
+                # Continue with next topic instead of stopping
+                continue
 
         # Don't close connection here - let the caller manage it
         logger.debug("Database connection maintained (periodic_monitoring)")
@@ -243,6 +245,8 @@ async def main():
 
         except Exception as e:
             logger.error(f"Error in main agent loop: {e}")
+            # Don't exit the main loop on errors, just wait and continue
+            await asyncio.sleep(60)  # Wait a minute before retrying
 
 
 if __name__ == "__main__":

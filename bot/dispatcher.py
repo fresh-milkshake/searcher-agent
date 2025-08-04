@@ -17,6 +17,7 @@ from shared.database import (
     ArxivPaper,
     UserSettings,
     init_db,
+    ensure_connection,
 )
 from peewee import DoesNotExist
 from shared.logger import get_logger
@@ -41,29 +42,20 @@ dp.include_router(general_router)
 async def handle_task_completion(event: Event):
     """Task completion handler - sends reports and notifications"""
     try:
-        task_id = event.data.get("task_id")
-        result = event.data.get("result")
-        task_type = event.data.get("task_type", "unknown")
+        task_id = event.data.get("task_id") if event.data else None
+        result = event.data.get("result") if event.data else None
+        task_type = event.data.get("task_type", "unknown") if event.data else "unknown"
 
         if not task_id:
             logger.warning(f"Task completion event without ID: {event.data}")
             return
 
-        # Check if database is already connected
+        # Ensure database connection
         try:
-            if hasattr(db, "is_closed") and db.is_closed():
-                db.connect()
-            elif hasattr(db.database, "is_closed") and db.database.is_closed():
-                db.connect()
+            ensure_connection()
         except Exception as e:
-            logger.warning(f"Database connection issue: {e}, retrying...")
-            # Wait a bit and retry
-            await asyncio.sleep(1)
-            try:
-                db.connect()
-            except Exception as e2:
-                logger.error(f"Failed to connect to database: {e2}")
-                return
+            logger.error(f"Failed to connect to database: {e}")
+            return
 
         try:
             task = Task.get(Task.id == task_id)
@@ -127,9 +119,8 @@ async def handle_task_completion(event: Event):
 async def send_analysis_report(user_id: int, analysis_id: int):
     """Sends structured report about found article"""
     try:
-        # Check if database is already connected
-        if hasattr(db, "is_closed") and db.is_closed():
-            db.connect()
+        # Ensure database connection
+        ensure_connection()
 
         # Get analysis with article and topic data
         analysis = (
@@ -155,15 +146,22 @@ async def send_analysis_report(user_id: int, analysis_id: int):
             logger.error(f"Error getting published date: {e}")
             published_date = "Not specified"
 
+        try:
+            authors = json.loads(paper.authors)
+            if authors:
+                authors = ", ".join(f"<code>{author}</code>" for author in authors)
+            else:
+                authors = "Not specified"
+        except Exception as e:
+            logger.error(f"Error getting authors: {e}")
+            authors = "Not specified"
+
         report = f"""
 🔬 <b>Found topic intersection: <u>"{topic.target_topic}"</u> in area <u>"{topic.search_area}"</u></b>
 
 📄 <b>Title:</b> <code>{paper.title}</code>
-
-👥 <b>Authors:</b> {', '.join(paper.authors) if paper.authors else 'Not specified'}
-
+👥 <b>Authors:</b> {authors}
 📅 <b>Publication date:</b> <code>{published_date}</code>
-
 📚 <b>arXiv category:</b> <code>{paper.primary_category or 'Not specified'}</code>
 
 🔗 <b>Link:</b> {paper.abs_url}
@@ -172,7 +170,7 @@ async def send_analysis_report(user_id: int, analysis_id: int):
 • Target topic relevance: {analysis.target_topic_relevance:.1f}%
 
 📋 <b>Brief summary:</b>
-{analysis.summary or 'Analysis in progress'}
+<blockquote expandable>{analysis.summary or 'Analysis in progress'}</blockquote>
         """
 
         # Add key fragments if available
@@ -224,9 +222,8 @@ async def check_new_analyses():
 
     while True:
         try:
-            # Check if database is already connected
-            if hasattr(db, "is_closed") and db.is_closed():
-                db.connect()
+            # Ensure database connection
+            ensure_connection()
 
             # Get new analyses that haven't been sent yet
             new_analyses = (

@@ -6,7 +6,7 @@ import re
 import json
 
 from bot.utils import escape_html
-from shared.database import db, ResearchTopic, UserSettings, Task
+from shared.database import db, ResearchTopic, UserSettings, Task, ensure_connection
 from peewee import DoesNotExist
 from shared.logger import get_logger
 from shared.event_system import task_events
@@ -51,7 +51,13 @@ async def command_topic_handler(message: Message) -> None:
             await message.answer("❌ Topics must contain at least 3 characters.")
             return
 
-        db.connect()
+        # Ensure database connection
+        try:
+            ensure_connection()
+        except Exception as e:
+            logger.error(f"Failed to connect to database: {e}")
+            await message.answer("❌ Database connection error. Please try again.")
+            return
 
         # Deactivate previous user topics
         ResearchTopic.update(is_active=False).where(
@@ -104,7 +110,7 @@ async def command_topic_handler(message: Message) -> None:
 
         await message.answer(message_text, parse_mode=ParseMode.HTML)
 
-        db.close()
+        # Don't close connection here - let the caller manage it
 
     except Exception as e:
         logger.error(f"Error in /topic command: {e}")
@@ -120,7 +126,14 @@ async def command_switch_themes_handler(message: Message) -> None:
             return
 
         user_id = message.from_user.id
-        db.connect()
+        
+        # Ensure database connection
+        try:
+            ensure_connection()
+        except Exception as e:
+            logger.error(f"Failed to connect to database: {e}")
+            await message.answer("❌ Database connection error. Please try again.")
+            return
 
         try:
             topic = ResearchTopic.get(
@@ -170,7 +183,7 @@ async def command_switch_themes_handler(message: Message) -> None:
                 parse_mode=ParseMode.HTML,
             )
 
-        db.close()
+        # Don't close connection here - let the caller manage it
 
     except Exception as e:
         logger.error(f"Error in /switch_themes command: {e}")
@@ -186,7 +199,14 @@ async def command_pause_handler(message: Message) -> None:
             return
 
         user_id = message.from_user.id
-        db.connect()
+        
+        # Ensure database connection
+        try:
+            ensure_connection()
+        except Exception as e:
+            logger.error(f"Failed to connect to database: {e}")
+            await message.answer("❌ Database connection error. Please try again.")
+            return
 
         try:
             settings = UserSettings.get(UserSettings.user_id == user_id)
@@ -201,7 +221,7 @@ async def command_pause_handler(message: Message) -> None:
         except DoesNotExist:
             await message.answer("❌ User settings not found.")
 
-        db.close()
+        # Don't close connection here - let the caller manage it
 
     except Exception as e:
         logger.error(f"Error in /pause command: {e}")
@@ -217,7 +237,14 @@ async def command_resume_handler(message: Message) -> None:
             return
 
         user_id = message.from_user.id
-        db.connect()
+        
+        # Ensure database connection
+        try:
+            ensure_connection()
+        except Exception as e:
+            logger.error(f"Failed to connect to database: {e}")
+            await message.answer("❌ Database connection error. Please try again.")
+            return
 
         try:
             settings = UserSettings.get(UserSettings.user_id == user_id)
@@ -233,7 +260,7 @@ async def command_resume_handler(message: Message) -> None:
         except DoesNotExist:
             await message.answer("❌ User settings not found.")
 
-        db.close()
+        # Don't close connection here - let the caller manage it
 
     except Exception as e:
         logger.error(f"Error in /resume command: {e}")
@@ -249,7 +276,14 @@ async def command_settings_handler(message: Message) -> None:
             return
 
         user_id = message.from_user.id
-        db.connect()
+        
+        # Ensure database connection
+        try:
+            ensure_connection()
+        except Exception as e:
+            logger.error(f"Failed to connect to database: {e}")
+            await message.answer("❌ Database connection error. Please try again.")
+            return
 
         try:
             settings = UserSettings.get(UserSettings.user_id == user_id)
@@ -272,16 +306,10 @@ async def command_settings_handler(message: Message) -> None:
 • Daily Digest: ≥{settings.daily_digest_threshold:.1f}%
 • Weekly Digest: ≥{settings.weekly_digest_threshold:.1f}%
 
-⏰ <b>Time Filters:</b>
-• Search Depth: {settings.days_back_to_search} days
-
 🤖 <b>Status:</b> {escape_html(status_text)}
-
-💡 Contact the developer to change settings.
         """
 
         await message.answer(settings_text, parse_mode=ParseMode.HTML)
-        db.close()
 
     except Exception as e:
         logger.error(f"Error in /settings command: {e}")
