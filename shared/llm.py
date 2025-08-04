@@ -36,5 +36,5 @@ Deepseek_Chat_V3_0324 = OpenAIChatCompletionsModel(
     model="deepseek/deepseek-chat-v3-0324:free", openai_client=_open_router
 )
 
-AGENT_MODEL = Qwen3_480B_Coder
+AGENT_MODEL = Gpt4oMini
 MULTIMODAL_MODEL = Gpt4oMini

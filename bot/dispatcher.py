@@ -10,7 +10,6 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from bot.utils import escape_html
 from shared.database import (
-    db,
     Task,
     ResearchTopic,
     PaperAnalysis,
@@ -22,7 +21,7 @@ from shared.database import (
 from peewee import DoesNotExist
 from shared.logger import get_logger
 from shared.event_system import Event
-from bot.handlers import general_router, management_router
+from bot.handlers import general_router, management_router, settings_router
 
 load_dotenv()
 
@@ -36,6 +35,7 @@ bot = Bot(token=BOT_TOKEN)
 
 dp = Dispatcher()
 dp.include_router(management_router)
+dp.include_router(settings_router)
 dp.include_router(general_router)
 
 
@@ -68,6 +68,9 @@ async def handle_task_completion(event: Event):
                 logger.warning(f"Task {task_id} does not contain user_id")
                 return
 
+            # Get target chat ID (group chat or personal chat)
+            target_chat_id = await get_target_chat_id(user_id)
+
             # Handle different task types
             if task_type == "analysis_complete":
                 # Send report about found relevant article
@@ -77,10 +80,10 @@ async def handle_task_completion(event: Event):
 
             elif task_type == "monitoring_started":
                 # Monitoring start confirmation
-                await bot.send_message(
-                    chat_id=user_id,
-                    text="🤖 <b>Monitoring started!</b>\n\nAI agent has begun searching for relevant articles.",
-                    parse_mode="HTML",
+                await send_message_to_target_chat(
+                    target_chat_id,
+                    "🤖 <b>Monitoring started!</b>\n\nAI agent has begun searching for relevant articles.",
+                    user_id
                 )
 
             elif task_type in ["start_monitoring", "restart_monitoring"]:
@@ -88,16 +91,14 @@ async def handle_task_completion(event: Event):
                 result_text = (
                     escape_html(result) if result else "✅ Monitoring configured"
                 )
-                await bot.send_message(
-                    chat_id=user_id, text=result_text, parse_mode="HTML"
-                )
+                await send_message_to_target_chat(target_chat_id, result_text, user_id)
 
             elif result:
                 # General responses for other task types
-                await bot.send_message(
-                    chat_id=user_id,
-                    text=escape_html(result),
-                    parse_mode="HTML",
+                await send_message_to_target_chat(
+                    target_chat_id,
+                    escape_html(result),
+                    user_id
                 )
 
             # Mark task as sent
@@ -114,6 +115,42 @@ async def handle_task_completion(event: Event):
     except Exception as e:
         logger.error(f"Error processing task completion: {e}")
         # Don't close connection in exception handler either
+
+
+async def get_target_chat_id(user_id: int) -> int:
+    """Get target chat ID - group chat if configured, otherwise personal chat"""
+    try:
+        ensure_connection()
+        settings = UserSettings.get(UserSettings.user_id == user_id)
+        return settings.group_chat_id if settings.group_chat_id else user_id
+    except DoesNotExist:
+        return user_id
+
+
+async def send_message_to_target_chat(chat_id: int, text: str, user_id: int | None = None):
+    """Send message to target chat with error handling"""
+    try:
+        await bot.send_message(
+            chat_id=chat_id,
+            text=text,
+            parse_mode=ParseMode.HTML,
+        )
+        logger.info(f"Message sent to chat {chat_id}")
+    except Exception as e:
+        logger.error(f"Error sending message to chat {chat_id}: {e}")
+        
+        # If failed to send to group chat, try to send to personal chat
+        if user_id is not None and chat_id != user_id:
+            try:
+                fallback_text = f"⚠️ <b>Failed to send notification to group chat</b>\n\n{text}"
+                await bot.send_message(
+                    chat_id=user_id,
+                    text=fallback_text,
+                    parse_mode=ParseMode.HTML,
+                )
+                logger.info(f"Fallback message sent to user {user_id}")
+            except Exception as fallback_error:
+                logger.error(f"Error sending fallback message to user {user_id}: {fallback_error}")
 
 
 async def send_analysis_report(user_id: int, analysis_id: int):
@@ -195,17 +232,17 @@ async def send_analysis_report(user_id: int, analysis_id: int):
 
         cleaned_report = re.sub(r"<think>.*?</think>", "", report, flags=re.DOTALL)
 
-        await bot.send_message(
-            chat_id=user_id,
-            text=cleaned_report,
-            parse_mode=ParseMode.HTML,
-        )
+        # Get target chat ID (group chat or personal chat)
+        target_chat_id = await get_target_chat_id(user_id)
+        
+        # Send report to target chat
+        await send_message_to_target_chat(target_chat_id, cleaned_report, user_id)
 
         # Mark analysis as sent
         analysis.status = "sent"
         analysis.save()
 
-        logger.info(f"Report sent to user {user_id} for analysis {analysis_id}")
+        logger.info(f"Report sent to chat {target_chat_id} for analysis {analysis_id}")
         # Don't close connection here - let the caller manage it
 
     except Exception as e:

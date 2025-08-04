@@ -5,7 +5,6 @@ from aiogram.filters import CommandStart, Command
 from aiogram.types import Message
 from aiogram.enums import ParseMode
 from shared.database import (
-    db,
     ResearchTopic,
     UserSettings,
     PaperAnalysis,
@@ -32,20 +31,32 @@ async def command_start_handler(message: Message) -> None:
 
 I can find intersections between scientific fields and discover interesting interdisciplinary research.
 
-📋 <b>Available commands:</b>
-
+📋 <b>Main commands:</b>
 🎯 /topic "target topic" "search area" - set topics for analysis
 📊 /status - current monitoring status  
 🔄 /switch_themes - swap topics
 ⏸️ /pause - pause analysis
 ▶️ /resume - resume work
 📚 /history - recent found intersections
-⚙️ /settings - filtering settings
+
+⚙️ <b>Settings commands:</b>
+📋 /settings - view current settings
+🔧 /set_relevance [area|topic|overall] [value] - set relevance thresholds
+🔔 /set_notification [instant|daily|weekly] [value] - set notification thresholds
+📅 /set_search_depth [days] - set search depth in days
+🔄 /reset_settings - reset to default values
+
+🗣️ <b>Group chat commands:</b>
+📬 /set_group - configure group notifications (use in group chat)
+📱 /unset_group - return to personal notifications
 
 <b>Usage example:</b>
 /topic "machine learning" "medicine"
 
 This will find articles in the field of medicine that use machine learning methods.
+
+💡 <b>Group chat usage:</b>
+Add this bot to a group chat and use /set_group to receive notifications there!
     """
 
     await message.answer(help_text, parse_mode=ParseMode.HTML)

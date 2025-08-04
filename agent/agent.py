@@ -644,7 +644,7 @@ Create a brief report on topic intersection.
         """Increment found papers counter"""
         self.papers_found_session += 1
 
-    async def _run_llm_with_retry(self, agent, query: str, max_retries: int = 3, base_delay: float = 2.0):
+    async def _run_llm_with_retry(self, agent, query: str, max_retries: int = 3, base_delay: float = 5.0):
         """Run LLM with retry logic for rate limiting and other transient errors"""
         for attempt in range(max_retries):
             try:

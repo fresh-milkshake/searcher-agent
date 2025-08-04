@@ -125,6 +125,9 @@ class UserSettings(BaseModel):
     daily_digest_threshold = FloatField(default=50.0)  # Daily digest
     weekly_digest_threshold = FloatField(default=30.0)  # Weekly digest
 
+    # Group chat settings
+    group_chat_id = BigIntegerField(null=True)  # ID of group chat for notifications
+
     # Time filters
     days_back_to_search = CharField(max_length=10, default="7")  # Search depth in days
     excluded_categories = TextField(null=True)  # JSON with excluded arXiv categories
