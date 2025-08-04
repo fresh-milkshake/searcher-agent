@@ -132,11 +132,13 @@ python start_agent.py  # 🧠 Agent only
 
 <table>
 <tr>
+<th>Category</th>
 <th>Command</th>
 <th>Description</th>
 <th>Example</th>
 </tr>
 <tr>
+<td rowspan="6"><strong>Main</strong></td>
 <td><code>/start</code></td>
 <td>Help & commands</td>
 <td>-</td>
@@ -152,6 +154,11 @@ python start_agent.py  # 🧠 Agent only
 <td>-</td>
 </tr>
 <tr>
+<td><code>/switch_themes</code></td>
+<td>Swap target and search topics</td>
+<td>-</td>
+</tr>
+<tr>
 <td><code>/pause</code>, <code>/resume</code></td>
 <td>Control monitoring</td>
 <td>-</td>
@@ -161,7 +168,78 @@ python start_agent.py  # 🧠 Agent only
 <td>Recent findings</td>
 <td>-</td>
 </tr>
+<tr>
+<td rowspan="6"><strong>Settings</strong></td>
+<td><code>/settings</code></td>
+<td>View current settings</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>/set_relevance</code></td>
+<td>Set relevance thresholds</td>
+<td><code>/set_relevance area 60</code></td>
+</tr>
+<tr>
+<td><code>/set_notification</code></td>
+<td>Set notification thresholds</td>
+<td><code>/set_notification instant 80</code></td>
+</tr>
+<tr>
+<td><code>/set_search_depth</code></td>
+<td>Set search depth in days</td>
+<td><code>/set_search_depth 14</code></td>
+</tr>
+<tr>
+<td><code>/reset_settings</code></td>
+<td>Reset to defaults</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>/set_group</code>, <code>/unset_group</code></td>
+<td>Configure group notifications</td>
+<td>-</td>
+</tr>
 </table>
+
+### Group Chat Support
+
+The bot supports **group chat notifications** - you can configure it to send all findings to a group chat instead of personal messages.
+
+#### Setup Group Notifications
+
+1. **Add bot to group chat**
+2. **Use command in group**: `/set_group`
+3. **All notifications will be sent to the group**
+
+Use `/unset_group` to return notifications to your personal chat.
+
+### Settings
+
+The bot provides **fine-grained control** over analysis and notification parameters.
+
+#### Relevance Thresholds
+
+Control how strict the analysis should be:
+
+```bash
+/set_relevance topic 70     # Target topic relevance (0-100%)
+```
+
+#### Notification Settings
+
+Configure when you want to be notified:
+
+```bash
+/set_notification instant 80  # Instant notifications (≥80% relevance)
+/set_notification daily 50    # Daily digest (≥50% relevance)
+/set_notification weekly 30   # Weekly digest (≥30% relevance)
+```
+
+#### Reset to Defaults
+
+```bash
+/reset_settings 
+```
 
 ---
 
