@@ -7,21 +7,12 @@
 </p>
 
 <p align="center">
-  <a href="https://www.python.org/">
-    <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python Version">
-  </a>
-  <a href="https://opensource.org/licenses/MIT">
-    <img src="https://img.shields.io/badge/License-MIT-4CAF50?logo=open-source-initiative&logoColor=white" alt="License">
-  </a>
-  <a href="https://platform.openai.com/docs/models">
-    <img src="https://img.shields.io/badge/AI-OpenAI%20GPT-10A37F?logo=openai&logoColor=white" alt="AI Model">
-  </a>
-  <a href="https://core.telegram.org/bots">
-    <img src="https://img.shields.io/badge/Bot-Telegram-229ED9?logo=telegram&logoColor=white" alt="Telegram Bot">
-  </a>
-  <a href="https://www.sqlite.org/">
-    <img src="https://img.shields.io/badge/Database-SQLite-07405E?logo=sqlite&logoColor=white" alt="Database">
-  </a>
+ 
+<img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python Version">
+<img src="https://img.shields.io/badge/License-MIT-4CAF50?logo=open-source-initiative&logoColor=white" alt="License">
+<img src="https://img.shields.io/badge/AI-OpenAI%20GPT-10A37F?logo=openai&logoColor=white" alt="AI Model">
+<img src="https://img.shields.io/badge/Bot-Telegram-229ED9?logo=telegram&logoColor=white" alt="Telegram Bot">
+<img src="https://img.shields.io/badge/Database-SQLite-07405E?logo=sqlite&logoColor=white" alt="Database">
 </p>
 
 <p align="center">
@@ -206,5 +197,5 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
   <strong>🌟 Star this repo if you find it useful!</strong>
   <br>
   <br>
-  <a href="#" style="font-size: 1.2em; color: white;">⬆️ Back to top</a>
+  <a href="#-searcher-agent" style="font-size: 1.2em; color: white;">⬆️ Back to top</a>
 </p>
