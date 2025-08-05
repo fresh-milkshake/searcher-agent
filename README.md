@@ -10,7 +10,7 @@
  
 <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python Version">
 <img src="https://img.shields.io/badge/License-MIT-4CAF50?logo=open-source-initiative&logoColor=white" alt="License">
-<img src="https://img.shields.io/badge/AI-OpenAI%20GPT-10A37F?logo=openai&logoColor=white" alt="AI Model">
+<img src="https://img.shields.io/badge/AI-OpenAI-10A37F?logo=openai&logoColor=white" alt="AI Model">
 <img src="https://img.shields.io/badge/Bot-Telegram-229ED9?logo=telegram&logoColor=white" alt="Telegram Bot">
 <img src="https://img.shields.io/badge/Database-SQLite-07405E?logo=sqlite&logoColor=white" alt="Database">
 </p>
