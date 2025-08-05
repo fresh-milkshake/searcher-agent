@@ -271,9 +271,12 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 ---
 
-<p align="center">
-  <strong>🌟 Star this repo if you find it useful!</strong>
+<div align="center">
+
+**Built by [fresh-milkshake](https://github.com/fresh-milkshake)**
+<br>
+Give this project a ⭐ if you found it useful!
   <br>
   <br>
   <a href="#-searcher-agent" style="font-size: 1.2em; color: white;">⬆️ Back to top</a>
-</p>
+</div>
