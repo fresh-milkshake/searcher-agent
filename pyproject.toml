@@ -28,5 +28,10 @@ dependencies = [
 dev = [
     "pyright>=1.1.403",
     "ruff>=0.12.8",
+    "sphinx>=8.2.3",
+    "furo>=2024.8.6",
+    "myst-parser>=3.0.1",
+    "sphinx-copybutton>=0.5.2",
+    "sphinx-autodoc-typehints>=2.5.0",
 ]
 

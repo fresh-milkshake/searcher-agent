@@ -13,13 +13,26 @@ from pydantic import BaseModel, Field, field_validator
 class PipelineTask(BaseModel):
     """A high-level pipeline task describing the user's research intent.
 
-    Attributes:
-        query: Free-text task description or target area.
-        categories: Optional arXiv categories to constrain the search.
-        days_back: Optional number of days to look back in arXiv.
-        max_queries: Upper bound on generated search queries.
-        bm25_top_k: Number of top-ranked candidates to keep per iteration.
-        max_analyze: Max number of candidates to analyze with LLM.
+    Parameters
+    ----------
+    query:
+        Free-text task description or target area.
+    categories:
+        Optional arXiv categories to constrain the search, e.g. ``["cs.AI"]``.
+    max_queries:
+        Upper bound on generated search queries. Default: 5.
+    bm25_top_k:
+        Number of top-ranked candidates to keep. Default: 20.
+    max_analyze:
+        Max number of candidates to analyze with LLM. Default: 10.
+    min_relevance:
+        Minimum score required for inclusion in the final selection. Default: 50.0.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        PipelineTask(query="RAG for small datasets", categories=["cs.AI"])  # doctest: +ELLIPSIS
     """
 
     query: str
@@ -38,7 +51,12 @@ class PipelineTask(BaseModel):
 
 
 class PaperCandidate(BaseModel):
-    """A lightweight representation of a potential paper to evaluate."""
+    """A lightweight representation of a potential paper to evaluate.
+
+    Notes
+    -----
+    The ``bm25_score`` is populated during ranking and defaults to 0.0.
+    """
 
     arxiv_id: str
     title: str
@@ -74,7 +92,16 @@ class AnalysisResult(BaseModel):
 
 
 class PipelineOutput(BaseModel):
-    """Final output of the pipeline for consumer channels."""
+    """Final output of the pipeline for consumer channels.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        from agent.pipeline.pipeline import run_pipeline_sync
+        out = run_pipeline_sync(PipelineTask(query="graph neural networks for molecules"))
+        print(out.should_notify, len(out.analyzed))
+    """
 
     task: PipelineTask
     analyzed: List[AnalysisResult]
@@ -102,7 +129,7 @@ class QueryPlan(BaseModel):
 
 
 class AnalysisAgentOutput(BaseModel):
-    """Output schema for the analysis agent via `output_type`."""
+    """Output schema for the analysis agent via ``output_type``."""
 
     relevance: float
     summary: str

@@ -19,7 +19,20 @@ logger = get_logger(__name__)
 
 
 def score_result(task: PipelineTask, result: AnalysisResult) -> float:
-    """Compute overall score in [0, 100] using relevance and simple boosts."""
+    """Compute overall score in [0, 100] using relevance and simple boosts.
+
+    Parameters
+    ----------
+    task:
+        The pipeline task providing thresholds.
+    result:
+        A single analysis result to score.
+
+    Returns
+    -------
+    float
+        Score in the range [0, 100].
+    """
 
     score = float(max(0.0, min(100.0, result.relevance)))
     # Tiny boost if summary mentions code/dataset/benchmark
@@ -32,7 +45,22 @@ def score_result(task: PipelineTask, result: AnalysisResult) -> float:
 def select_top(
     task: PipelineTask, analyzed: List[AnalysisResult]
 ) -> List[ScoredAnalysis]:
-    """Score and keep items above min_relevance, sorted by score desc (compact set)."""
+    """Score and keep items above ``min_relevance`` in descending order.
+
+    The output is trimmed to at most three items to keep reports concise.
+
+    Parameters
+    ----------
+    task:
+        Pipeline task with ``min_relevance``.
+    analyzed:
+        Analysis results to select from.
+
+    Returns
+    -------
+    list[ScoredAnalysis]
+        Compact, sorted selection.
+    """
 
     items: List[ScoredAnalysis] = []
     for r in analyzed:
@@ -75,9 +103,22 @@ _REPORTER = Agent(
 async def make_decision_and_report(
     task: PipelineTask, selected: List[ScoredAnalysis]
 ) -> DecisionReport:
-    """Use the reporter agent to decide and generate a plain-text report.
+    """Generate a plain-text report or decide to skip notifying the user.
 
-    Falls back to a simple template if the agent is unavailable.
+    Uses an LLM-based reporter when available, falling back to a local
+    template otherwise.
+
+    Parameters
+    ----------
+    task:
+        The source task that describes user intent.
+    selected:
+        A compact list of scored analyses.
+
+    Returns
+    -------
+    DecisionReport
+        Decision and optional report text.
     """
 
     if not selected:
@@ -133,6 +174,20 @@ def _why_for_task(task_query: str, summary: str, max_len: int = 220) -> str:
     """Heuristic one-liner explaining usefulness for the task.
 
     Prefers overlap of task terms with summary; falls back to the first sentence.
+
+    Parameters
+    ----------
+    task_query:
+        The user task description.
+    summary:
+        Candidate summary to inspect.
+    max_len:
+        Maximum length of the produced sentence. Default: 220.
+
+    Returns
+    -------
+    str
+        A concise explanation string.
     """
     import re
 

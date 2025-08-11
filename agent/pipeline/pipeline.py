@@ -16,14 +16,37 @@ logger = get_logger(__name__)
 
 
 async def run_pipeline(task: PipelineTask) -> PipelineOutput:
-    """Execute the end-to-end pipeline and return structured output.
+    """Execute the end-to-end research pipeline and return structured output.
 
-    This is a minimal first implementation focusing on:
-    - Query generation (heuristic)
-    - Retrieval from arXiv
-    - BM25 ranking over title+abstract
-    - LLM analysis of top candidates
-    - Structured output object
+    Stages
+    ------
+    1) Strategy: generate multiple queries for the task
+    2) Retrieval: collect candidates from arXiv
+    3) Ranking: score with BM25 over title+abstract
+    4) Analysis: LLM/heuristic analysis of top candidates
+    5) Decision: choose items and produce a report
+
+    Parameters
+    ----------
+    task:
+        Validated :class:`agent.pipeline.models.PipelineTask` describing user intent.
+
+    Returns
+    -------
+    PipelineOutput
+        Structured result containing analyzed items and an optional human report.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        from agent.pipeline.models import PipelineTask
+        from agent.pipeline.pipeline import run_pipeline
+
+        task = PipelineTask(query="vision transformers for medical imaging")
+        output = await run_pipeline(task)
+        for item in output.analyzed:
+            print(item.candidate.title, item.relevance)
     """
 
     task = PipelineTask.model_validate(task)
@@ -90,7 +113,21 @@ async def run_pipeline(task: PipelineTask) -> PipelineOutput:
 
 
 def run_pipeline_sync(task: PipelineTask) -> PipelineOutput:
-    """Synchronous wrapper to run the async pipeline."""
+    """Run :func:`run_pipeline` synchronously.
+
+    This helper creates and runs an event loop to execute the async pipeline in
+    simple scripts or REPLs.
+
+    Parameters
+    ----------
+    task:
+        The pipeline task to execute.
+
+    Returns
+    -------
+    PipelineOutput
+        The structured pipeline output.
+    """
 
     return asyncio.run(run_pipeline(task))
 

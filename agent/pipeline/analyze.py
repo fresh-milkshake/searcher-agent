@@ -46,6 +46,22 @@ _ANALYZER = Agent(
 def _build_prompt(
     task_query: str, candidate: PaperCandidate, snippets: List[str]
 ) -> str:
+    """Build a compact analysis prompt for the LLM.
+
+    Parameters
+    ----------
+    task_query:
+        The user task description used to judge relevance.
+    candidate:
+        The paper candidate to analyze.
+    snippets:
+        Optional extra text fragments to include (e.g., quotes).
+
+    Returns
+    -------
+    str
+        A compact prompt string for the analyzer agent.
+    """
     text_snippets = "\n\n".join(snippets) if snippets else ""
     return dedent(
         f"""
@@ -63,11 +79,23 @@ def _build_prompt(
 async def analyze_candidates(
     *, task_query: str, analysis_inputs: List[AnalysisInput]
 ) -> List[AnalysisResult]:
-    """Analyze candidates concurrently via Agents Runner.
+    """Analyze candidates via agents or a heuristic fallback.
 
-    Note: The current `openai-agents` Runner handles batching internally; we
-    collect results sequentially for simplicity. Concurrency/semaphores can be
-    added later if needed.
+    When an API key and the environment flag ``PIPELINE_USE_AGENTS_ANALYZE`` is
+    set, uses the configured LLM agent to produce structured outputs.
+    Otherwise, computes a quick overlap-based heuristic.
+
+    Parameters
+    ----------
+    task_query:
+        The task description that guides relevance.
+    analysis_inputs:
+        Ranked inputs containing candidates and optional snippets.
+
+    Returns
+    -------
+    list[AnalysisResult]
+        One analysis per input, preserving order.
     """
 
     results: List[AnalysisResult] = []
@@ -132,7 +160,20 @@ async def analyze_candidates(
 
 
 def _heuristic_relevance(task_query: str, candidate: PaperCandidate) -> float:
-    """Compute a quick overlap-based relevance in [0, 100]."""
+    """Compute a quick overlap-based relevance in [0, 100].
+
+    Parameters
+    ----------
+    task_query:
+        The task description.
+    candidate:
+        The paper candidate.
+
+    Returns
+    -------
+    float
+        A score in the range [0, 100].
+    """
     import re
 
     def toks(s: str) -> set[str]:
@@ -150,5 +191,19 @@ def _heuristic_relevance(task_query: str, candidate: PaperCandidate) -> float:
 
 
 def _truncate_summary(text: str, max_chars: int = 800) -> str:
+    """Return a summary truncated to ``max_chars``.
+
+    Parameters
+    ----------
+    text:
+        Source text to truncate.
+    max_chars:
+        Maximum number of characters to retain. Default: 800.
+
+    Returns
+    -------
+    str
+        The truncated summary string.
+    """
     s = (text or "").strip()
     return s[:max_chars]

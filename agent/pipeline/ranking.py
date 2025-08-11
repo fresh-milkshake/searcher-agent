@@ -71,7 +71,24 @@ def rank_candidates(
     candidates: Iterable[PaperCandidate],
     top_k: int,
 ) -> List[PaperCandidate]:
-    """Rank candidates with BM25 over title + summary and return top-k."""
+    """Rank candidates with BM25 over title + summary and return top-k.
+
+    Parameters
+    ----------
+    query:
+        Natural-language query.
+    candidates:
+        Iterable of :class:`PaperCandidate` to be ranked. Candidates are
+        copied to a list internally and scores are written to their
+        ``bm25_score`` attribute.
+    top_k:
+        Number of items to return after sorting by score and recency.
+
+    Returns
+    -------
+    list[PaperCandidate]
+        The top-k candidates, sorted by descending score and recency.
+    """
 
     logger.debug(f"Ranking {len(list(candidates))} candidates, top_k={top_k}")
     candidates_list = list(candidates)

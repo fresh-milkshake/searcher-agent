@@ -49,14 +49,30 @@ def arxiv_search(
     max_results: int = 100,
     start: int = 0,
 ) -> List[PaperCandidate]:
-    """Search arXiv and convert results to `PaperCandidate` items.
+    """Search arXiv and convert results to ``PaperCandidate`` items.
 
-    Args:
-        query: Search query string.
-        categories: Optional arXiv categories.
-        days_back: Optional days-back time filter.
-        max_results: Page size.
-        start: Offset for pagination.
+    Parameters
+    ----------
+    query:
+        Search query string.
+    categories:
+        Optional list of arXiv categories, e.g. ``["cs.AI", "cs.LG"]``.
+    max_results:
+        Page size for the search request. Default: 100.
+    start:
+        Offset for pagination. Default: 0.
+
+    Returns
+    -------
+    list[PaperCandidate]
+        A list of candidate papers converted from arXiv results.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        items = arxiv_search(query="RAG AND small datasets", max_results=10)
+        print(len(items))
     """
     norm_query = _normalize_query_for_arxiv(query)
     logger.debug(
@@ -96,8 +112,19 @@ def collect_candidates(
 ) -> List[PaperCandidate]:
     """Run arXiv search for each query and collect unique candidates by id.
 
-    If no candidates are found with the configured `days_back`, falls back to
-    running without a date filter to validate the query set.
+    Parameters
+    ----------
+    task:
+        The pipeline task providing categories and other context.
+    queries:
+        Iterable of search query strings.
+    per_query_limit:
+        Max results retrieved for each query. Default: 50.
+
+    Returns
+    -------
+    list[PaperCandidate]
+        Unique candidates from all queries.
     """
 
     logger = get_logger(__name__)
@@ -125,7 +152,15 @@ def collect_candidates(
 
 
 def _broaden_query(query: str) -> List[str]:
-    """Generate broader variants of a query to improve recall."""
+    """Generate broader variants of a query to improve recall.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        _broaden_query("transformers AND medical AND imaging")
+        # ['transformers AND medical', 'transformers AND medical', 'transformers medical imaging']
+    """
     parts = [p.strip() for p in query.split(" AND ") if p.strip()]
     variants: List[str] = []
     # Drop last clause variant

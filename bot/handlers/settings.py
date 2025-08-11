@@ -170,7 +170,9 @@ async def deprecated_set_notification_handler(message: Message) -> None:
         pass
 
 
-@router.message(Command("set_search_depth")) # TODO: удалить или изменить все старые хэндлеры оставшиеся в коде от версии поисковика а не ассистента
+@router.message(
+    Command("set_search_depth")
+)  # TODO: удалить или изменить все старые хэндлеры оставшиеся в коде от версии поисковика а не ассистента
 async def command_set_search_depth_handler(message: Message) -> None:
     """Set search depth in days"""
     try:

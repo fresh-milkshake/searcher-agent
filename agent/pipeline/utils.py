@@ -1,4 +1,21 @@
-"""Utility helpers for pipeline"""
+"""Utility helpers for the research pipeline.
+
+This module currently provides a small set of runtime helpers that are reused
+across pipeline stages. The public API is intentionally minimal and stable.
+
+Example
+-------
+.. code-block:: python
+
+    from agent.pipeline.utils import retry_async
+
+    async def fetch():
+        # some flaky network call
+        return 42
+
+    result = await retry_async(lambda: fetch(), attempts=3, base_delay=1.0)
+    assert result == 42
+"""
 
 import asyncio
 from typing import Awaitable, Callable, Optional, TypeVar
@@ -20,14 +37,40 @@ async def retry_async(
 ) -> T:
     """Retry an async operation with exponential backoff.
 
-    Args:
-        func: Zero-arg coroutine factory to call each attempt.
-        attempts: Total attempts (including the first).
-        base_delay: Initial delay in seconds before the next try.
-        factor: Multiplier applied to delay after each failure.
+    Parameters
+    ----------
+    func:
+        Zero-argument coroutine factory to call on each attempt. Using a
+        factory defers the creation of the coroutine until the moment it
+        is awaited, which avoids "already awaited" errors on retries.
+    attempts:
+        Total attempts including the first call. Must be >= 1. Default: 3.
+    base_delay:
+        Initial delay in seconds before the next attempt. Default: 5.0.
+    factor:
+        Multiplicative backoff factor applied after each failure. Default: 2.0.
 
-    Raises:
-        The last exception if all attempts fail.
+    Returns
+    -------
+    T
+        The value returned by the successful call to ``func``.
+
+    Raises
+    ------
+    Exception
+        Re-raises the last exception encountered if all attempts fail.
+
+    Examples
+    --------
+    Basic usage with a lambda factory:
+
+    .. code-block:: python
+
+        async def get_value() -> int:
+            return 7
+
+        value = await retry_async(lambda: get_value(), attempts=5, base_delay=0.2)
+        assert value == 7
     """
     delay = base_delay
     last_error: Optional[Exception] = None
