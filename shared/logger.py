@@ -1,70 +1,73 @@
-"""
-Logging configuration for the project
+"""Logging configuration using Loguru.
+
+- File sink: captures ALL logs (DEBUG+) to `logs/YYYY-MM-DD.log`
+- Console sink: level is configurable per process (default INFO)
 """
 
 import logging
+import sys
 from datetime import datetime
 from pathlib import Path
 
+from loguru import logger as _loguru_logger
 
-def setup_logger(name: str, log_level: int = logging.INFO) -> logging.Logger:
-    """
-    Configure logger with date-based file logging
 
-    Args:
-        name: Logger name
-        log_level: Logging level
+_CONFIGURED: bool = False
 
-    Returns:
-        Configured logger
-    """
-    # Create logs directory
+
+def _configure_loguru(console_level: int = logging.INFO) -> None:
+    """Configure Loguru sinks once per process."""
+    global _CONFIGURED
+    if _CONFIGURED:
+        return
+
     logs_dir = Path("logs")
     logs_dir.mkdir(exist_ok=True)
-
-    # Filename with current date
     log_filename = f"{datetime.now().strftime('%Y-%m-%d')}.log"
     log_filepath = logs_dir / log_filename
 
-    # Create logger
-    logger = logging.getLogger(name)
-    logger.setLevel(log_level)
+    # Remove default sink to avoid duplicate outputs
+    try:
+        _loguru_logger.remove()
+    except Exception:
+        pass
 
-    # Check if handlers already exist (avoid duplication)
-    if logger.handlers:
-        return logger
-
-    # Create formatter
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
+    # Console sink (level configurable)
+    _loguru_logger.add(
+        sys.stdout,
+        level=console_level,
+        format="{time:YYYY-MM-DD HH:mm:ss} - {name} - {level} - {message}",
+        enqueue=True,
+        diagnose=False,
+        backtrace=False,
     )
 
-    # Create file handler
-    file_handler = logging.FileHandler(log_filepath, encoding="utf-8")
-    file_handler.setLevel(log_level)
-    file_handler.setFormatter(formatter)
+    # File sink (always DEBUG and above)
+    _loguru_logger.add(
+        str(log_filepath),
+        level="DEBUG",
+        format="{time:YYYY-MM-DD HH:mm:ss} - {name} - {level} - {message}",
+        rotation="00:00",
+        encoding="utf-8",
+        enqueue=True,
+        diagnose=False,
+        backtrace=False,
+    )
 
-    # Create console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(log_level)
-    console_handler.setFormatter(formatter)
-
-    # Add handlers to logger
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
-
-    return logger
+    _CONFIGURED = True
 
 
-def get_logger(name: str) -> logging.Logger:
+def setup_logger(name: str, log_level: int = logging.INFO):
+    """Return a Loguru logger bound for module usage.
+
+    Note: ``name`` is not required by Loguru to display the module name; the
+    format uses ``{name}`` from the call site. We keep the signature for
+    backward compatibility.
     """
-    Get configured logger
+    _configure_loguru(console_level=log_level)
+    return _loguru_logger
 
-    Args:
-        name: Logger name
 
-    Returns:
-        Logger
-    """
+def get_logger(name: str):
+    """Get configured Loguru logger."""
     return setup_logger(name)

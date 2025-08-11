@@ -4,15 +4,16 @@ from datetime import datetime
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message
 from aiogram.enums import ParseMode
-from shared.database import (
-    ResearchTopic,
-    UserSettings,
-    PaperAnalysis,
-    ArxivPaper,
-    AgentStatus,
+from textwrap import dedent
+from shared.db import (
     ensure_connection,
+    get_active_topic_by_user,
+    get_user_settings,
+    count_analyses_for_user,
+    count_relevant_analyses_for_user,
+    get_agent_status,
+    list_recent_analyses_for_user,
 )
-from peewee import DoesNotExist
 from shared.logger import get_logger
 
 router = Router(name="general")
@@ -26,38 +27,34 @@ async def command_start_handler(message: Message) -> None:
     if message.from_user and message.from_user.full_name:
         user_name = message.from_user.full_name
 
-    help_text = f"""
-🔬 Hello, {user_name}! I'm a bot for automatic analysis of arXiv scientific articles.
+    help_text = dedent(f"""
+    🔬 Hello, {user_name}! I'm your assistant that explores arXiv and finds papers useful for your goals.
 
-I can find intersections between scientific fields and discover interesting interdisciplinary research.
+    📌 <b>How it works</b>
+    • You set a task. I search arXiv, evaluate relevance, and send you clear, friendly summaries.
 
-📋 <b>Main commands:</b>
-🎯 /topic "target topic" "search area" - set topics for analysis
-📊 /status - current monitoring status  
-🔄 /switch_themes - swap topics
-⏸️ /pause - pause analysis
-▶️ /resume - resume work
-📚 /history - recent found intersections
+    📋 <b>Main commands</b>
+    • /task "Title" description — create a new autonomous search task
+    • /status_task — show your tasks
+    • /pause_task &lt;id&gt;, /resume_task &lt;id&gt; — pause/resume a task
+    • /history — recent findings
+    • /status — system status
 
-⚙️ <b>Settings commands:</b>
-📋 /settings - view current settings
-🔧 /set_relevance [area|topic|overall] [value] - set relevance thresholds
-🔔 /set_notification [instant|daily|weekly] [value] - set notification thresholds
-📅 /set_search_depth [days] - set search depth in days
-🔄 /reset_settings - reset to default values
+    ⚙️ <b>Settings</b>
+    • /settings — view current settings
+    • /set_relevance relevance &lt;0-100&gt; — set relevance threshold
+    • /set_notification [instant|daily|weekly] &lt;0-100&gt;
+    • /set_search_depth &lt;days&gt;
+    • /reset_settings — defaults
 
-🗣️ <b>Group chat commands:</b>
-📬 /set_group - configure group notifications (use in group chat)
-📱 /unset_group - return to personal notifications
+    🗣️ <b>Group chats</b>
+    • /set_group — send notifications to this group
+    • /unset_group — back to personal chat
 
-<b>Usage example:</b>
-/topic "machine learning" "medicine"
-
-This will find articles in the field of medicine that use machine learning methods.
-
-💡 <b>Group chat usage:</b>
-Add this bot to a group chat and use /set_group to receive notifications there!
-    """
+    🧭 <b>Tip</b>
+    Start with something like:
+    /task "AI for medical imaging" Find practical studies, datasets, and evaluation results
+    """)
 
     await message.answer(help_text, parse_mode=ParseMode.HTML)
 
@@ -76,105 +73,76 @@ async def command_status_handler(message: Message) -> None:
         ensure_connection()
 
         # Get active topic
-        try:
-            topic = ResearchTopic.get(
-                ResearchTopic.user_id == user_id, ResearchTopic.is_active
-            )
-
-            # Get settings
-            try:
-                settings = UserSettings.get(UserSettings.user_id == user_id)
-                monitoring_status = (
-                    "🟢 Active" if settings.monitoring_enabled else "🔴 Paused"
-                )
-            except DoesNotExist:
-                monitoring_status = "🟢 Active"
-
-            # Analysis statistics
-            analyses_count = (
-                PaperAnalysis.select()
-                .join(ResearchTopic)
-                .where(ResearchTopic.user_id == user_id)
-                .count()
-            )
-
-            # Found relevant articles
-            relevant_count = (
-                PaperAnalysis.select()
-                .join(ResearchTopic)
-                .where(
-                    ResearchTopic.user_id == user_id,
-                    PaperAnalysis.overall_relevance >= 50.0,  # type: ignore
-                )
-                .count()
-            )
-
-            # Get agent status
-            agent_info = ""
-            try:
-                agent_status = AgentStatus.get(AgentStatus.agent_id == "main_agent")
-                time_diff = datetime.now() - agent_status.last_activity
-
-                if time_diff.total_seconds() < 600:  # Less than 10 minutes
-                    agent_active = "🟢 Active"
-                    activity_info = (
-                        f"🔄 <b>Current activity:</b> {agent_status.activity}"
-                    )
-
-                    # Show current processing info if available
-                    if agent_status.current_user_id:
-                        if agent_status.current_user_id == user_id:
-                            activity_info += "\n📍 <b>Processing your topics</b>"
-                        else:
-                            activity_info += f"\n📍 <b>Processing topics for user {agent_status.current_user_id}</b>"
-
-                    session_info = "📊 <b>Session statistics:</b>\n"
-                    session_info += (
-                        f"• Papers processed: {agent_status.papers_processed}\n"
-                    )
-                    session_info += (
-                        f"• Relevant papers found: {agent_status.papers_found}\n"
-                    )
-                    session_info += f"• Started: {agent_status.session_start.strftime('%d.%m.%Y %H:%M')}"
-
-                else:
-                    agent_active = "🔴 Inactive"
-                    activity_info = f"⏰ <b>Last activity:</b> {agent_status.last_activity.strftime('%d.%m.%Y %H:%M')}"
-                    session_info = ""
-
-                agent_info = f"""
-
-🤖 <b>AI Agent Status:</b> {agent_active}
-{activity_info}
-{session_info}
-"""
-            except DoesNotExist:
-                agent_info = "\n🤖 <b>AI Agent Status:</b> ❓ Unknown"
-
-            status_text = f"""
-📊 <b>Monitoring Status</b>
-
-🎯 <b>Target Topic:</b> {topic.target_topic}
-🔍 <b>Search Area:</b> {topic.search_area}
-📅 <b>Created:</b> {topic.created_at.strftime('%d.%m.%Y %H:%M')}
-
-🤖 <b>Monitoring:</b> {monitoring_status}
-📈 <b>Papers Analyzed:</b> {analyses_count}
-⭐ <b>Relevant Found:</b> {relevant_count}
-{agent_info}
-
-🔧 Use /settings to configure parameters
-            """
-
-            await message.answer(status_text, parse_mode=ParseMode.HTML)
-
-        except DoesNotExist:
+        topic = await get_active_topic_by_user(user_id)
+        if not topic:
             await message.answer(
                 "❌ <b>Topics not set</b>\n\n"
                 'Use command /topic "target topic" "search area" '
                 "to start monitoring.",
                 parse_mode=ParseMode.HTML,
             )
+            return
+
+        # Get settings
+        settings = await get_user_settings(user_id)
+        monitoring_status = (
+            "🟢 Active"
+            if (settings and getattr(settings, "monitoring_enabled", True))
+            else "🔴 Paused"
+        )
+
+        # Analysis statistics
+        analyses_count = await count_analyses_for_user(user_id)
+        relevant_count = await count_relevant_analyses_for_user(user_id, 50.0)
+
+        # Get agent status
+        agent_info = ""
+        agent_status = await get_agent_status("main_agent")
+        if agent_status:
+            time_diff = datetime.now() - agent_status.last_activity
+            if time_diff.total_seconds() < 600:
+                agent_active = "🟢 Active"
+                activity_info = f"🔄 <b>Current activity:</b> {agent_status.activity}"
+                if agent_status.current_user_id:
+                    if agent_status.current_user_id == user_id:
+                        activity_info += "\n📍 <b>Processing your topics</b>"
+                    else:
+                        activity_info += f"\n📍 <b>Processing topics for user {agent_status.current_user_id}</b>"
+                session_info = "📊 <b>Session statistics:</b>\n"
+                session_info += f"• Papers processed: {agent_status.papers_processed}\n"
+                session_info += (
+                    f"• Relevant papers found: {agent_status.papers_found}\n"
+                )
+                session_info += f"• Started: {agent_status.session_start.strftime('%d.%m.%Y %H:%M')}"
+            else:
+                agent_active = "🔴 Inactive"
+                activity_info = f"⏰ <b>Last activity:</b> {agent_status.last_activity.strftime('%d.%m.%Y %H:%M')}"
+                session_info = ""
+            agent_info = dedent(f"""
+
+            🤖 <b>AI Agent Status:</b> {agent_active}
+            {activity_info}
+            {session_info}
+            """)
+        else:
+            agent_info = "\n🤖 <b>AI Agent Status:</b> ❓ Unknown"
+
+        status_text = dedent(f"""
+        📊 <b>Monitoring Status</b>
+
+        🎯 <b>Target Topic:</b> {topic.target_topic}
+        🔍 <b>Search Area:</b> {topic.search_area}
+        📅 <b>Created:</b> {topic.created_at.strftime("%d.%m.%Y %H:%M")}
+
+        🤖 <b>Monitoring:</b> {monitoring_status}
+        📈 <b>Papers Analyzed:</b> {analyses_count}
+        ⭐ <b>Relevant Found:</b> {relevant_count}
+        {agent_info}
+
+        🔧 Use /settings to configure parameters
+        """)
+
+        await message.answer(status_text, parse_mode=ParseMode.HTML)
 
         # Don't close connection here - let the caller manage it
 
@@ -197,20 +165,8 @@ async def command_history_handler(message: Message) -> None:
         ensure_connection()
 
         # Get last 5 relevant analyses
-        analyses = (
-            PaperAnalysis.select(PaperAnalysis, ArxivPaper, ResearchTopic)
-            .join(ArxivPaper)
-            .switch(PaperAnalysis)
-            .join(ResearchTopic)
-            .where(
-                ResearchTopic.user_id == user_id,
-                PaperAnalysis.overall_relevance >= 50.0,  # type: ignore
-            )
-            .order_by(PaperAnalysis.created_at.desc())
-            .limit(5)
-        )
-
-        if not analyses:
+        items = await list_recent_analyses_for_user(user_id, limit=5)
+        if not items:
             await message.answer(
                 "📚 <b>History is empty</b>\n\n"
                 "Relevant articles not found yet.\n"
@@ -221,8 +177,7 @@ async def command_history_handler(message: Message) -> None:
 
         history_text = "📚 <b>Recent found topic intersections:</b>\n\n"
 
-        for analysis in analyses:
-            paper = analysis.paper
+        for analysis, paper in items:
             title_preview = (
                 paper.title[:80] + "..." if len(paper.title) > 80 else paper.title
             )
@@ -232,14 +187,14 @@ async def command_history_handler(message: Message) -> None:
                 else "Authors not specified"
             )
 
-            history_text += f"""
-📄 <b>{title_preview}</b>
-👥 {authors_preview}
-📊 Relevance: {analysis.overall_relevance:.1f}%
-📅 {analysis.created_at.strftime('%d.%m.%Y')}
-🔗 {paper.abs_url}
+            history_text += dedent(f"""
+            📄 <b>{title_preview}</b>
+            👥 {authors_preview}
+            📊 Relevance: {analysis.relevance:.1f}%
+            📅 {analysis.created_at.strftime("%d.%m.%Y")}
+            🔗 {paper.abs_url}
 
-"""
+            """)
         await message.answer(history_text, parse_mode=ParseMode.HTML)
         # Don't close connection here - let the caller manage it
 
@@ -259,9 +214,9 @@ async def unknown_message_handler(message: Message) -> None:
 
         await message.answer(
             "❓ <b>Unknown command</b>\n\n"
-            "Use /start to view available commands.\n\n"
-            "🔬 I specialize in analyzing arXiv scientific articles. "
-            "Set topics for analysis with /topic command.",
+            "Use /start to see commands.\n\n"
+            "💡 You can create a task like:\n"
+            '<code>/task "AI for medical imaging" Find practical studies and datasets</code>',
             parse_mode=ParseMode.HTML,
         )
 

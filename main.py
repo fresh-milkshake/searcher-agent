@@ -3,7 +3,7 @@ import subprocess
 import signal
 import sys
 from multiprocessing import Process
-from shared.database import init_db
+from shared.db import init_db
 
 
 def run_bot():
@@ -25,7 +25,7 @@ def signal_handler(sig, frame):
 async def main():
     """Main function to start all services"""
     print("Initializing database...")
-    init_db()
+    await init_db()
     print("Database initialized!")
 
     print("Starting services...")
