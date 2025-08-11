@@ -39,7 +39,7 @@ jobs:
           python-version: '3.13'
 
       - name: Sync dependencies (dev)
-        run: uv sync --group dev
+        run: uv sync --all-extras
 
       - name: Build Sphinx HTML
         run: uv run sphinx-build -b html docs ${{ env.BUILD_DIR }}
