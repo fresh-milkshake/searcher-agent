@@ -1,260 +1,184 @@
+"""Autonomous agent manager loop.
+
+Polls active user tasks, runs a single pipeline iteration per task, persists
+results (unless dry-run), and triggers Telegram notifications via DB tasks.
+"""
+
 import asyncio
+import json
 import os
-from datetime import datetime, timedelta
-from dotenv import load_dotenv
-import sys
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
 
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-
-from shared.database import db, Task, ResearchTopic, UserSettings, init_db
-from peewee import DoesNotExist
 from shared.logger import get_logger
-from shared.event_system import get_event_bus, Event, task_events
-from agent.agent import ArxivAnalysisAgent
+from shared.db import (
+    UserSettings,
+    UserTask,
+    create_arxiv_paper,
+    create_paper_analysis,
+    create_task,
+    get_user_settings,
+    list_active_user_tasks,
+    update_agent_status,
+    get_arxiv_paper_by_arxiv_id,
+)
 
-load_dotenv()
+from agent.pipeline.pipeline import run_pipeline
+from agent.pipeline.models import PipelineOutput, PipelineTask
+
 
 logger = get_logger(__name__)
 
 
-async def handle_task_creation(event: Event):
-    """Handler for creating new tasks - processes tasks as they arrive"""
-    try:
-        logger.debug(f"handle_task_creation called with event: {event.data}")
-        task_id = event.data.get("task_id") if event.data else None
-        task_type = event.data.get("task_type") if event.data else None
+@dataclass
+class RuntimeConfig:
+    poll_seconds: int = 30
+    dry_run: bool = False
+    agent_id: str = "main_agent"
+    test_user_id: Optional[int] = None
 
-        if not task_id:
-            logger.warning(f"Received task creation event without ID: {event.data}")
-            return
 
-        logger.info(
-            f"🚀 arXiv AGENT: Received notification about new task {task_id} of type {task_type}"
-        )
-
-        # Check if database is already connected
-        if hasattr(db, "is_closed") and db.is_closed():
-            db.connect()
-        logger.debug("Database connection established (handle_task_creation)")
-
+def _read_config() -> RuntimeConfig:
+    """Load runtime config from environment variables."""
+    poll = int(os.getenv("AGENT_POLL_SECONDS", "30"))
+    dry = os.getenv("AGENT_DRY_RUN", "0").lower() in {"1", "true", "yes"}
+    agent_id = os.getenv("AGENT_ID", "main_agent")
+    test_uid: Optional[int] = None
+    if os.getenv("AGENT_TEST_USER_ID"):
         try:
-            # Get task from database
-            task = Task.get(Task.id == task_id)
-            logger.debug(f"Task {task_id} retrieved from database")
-
-            # Create agent instance
-            agent = ArxivAnalysisAgent()
-            logger.debug("ArxivAnalysisAgent instance created")
-
-            # Process the task
-            logger.info(f"🔄 Processing task {task_id} of type {task_type}")
-            result = await agent.process_task(task)
-            logger.info(f"✅ Task {task_id} processed successfully")
-
-            # Mark task as completed
-            task.status = "completed"
-            task.result = result
-            task.save()
-            logger.debug(f"Task {task_id} marked as completed")
-
-            # Publish task completion event
-            task_events.task_completed(task_id=task_id, result=result)
-            logger.debug(f"Task completion event published for task {task_id}")
-
-        except DoesNotExist:
-            logger.error(f"Task {task_id} not found in database")
-        except Exception as e:
-            logger.error(f"Error processing task {task_id}: {e}")
-            # Mark task as failed
-            try:
-                task = Task.get(Task.id == task_id)
-                task.status = "failed"
-                task.result = str(e)
-                task.save()
-            except Exception as e:
-                logger.error(f"Error marking task {task_id} as failed: {e}")
-                pass
-
-        # Don't close connection here - let the caller manage it
-
-    except Exception as e:
-        logger.error(f"Error in handle_task_creation: {e}")
-        # Don't close connection in exception handler either
+            test_uid = int(os.getenv("AGENT_TEST_USER_ID", "").strip())
+        except Exception:
+            test_uid = None
+    return RuntimeConfig(
+        poll_seconds=poll, dry_run=dry, agent_id=agent_id, test_user_id=test_uid
+    )
 
 
-async def check_and_process_pending_tasks(agent: ArxivAnalysisAgent):
-    """Check for unprocessed tasks and process them"""
-    try:
-        # Check if database is already connected
-        if hasattr(db, "is_closed") and db.is_closed():
-            db.connect()
-
-        # Get all pending tasks
-        pending_tasks = Task.select().where(Task.status == "pending")
-        task_count = pending_tasks.count()
-
-        if task_count > 0:
-            logger.info(f"🔍 Found {task_count} unprocessed tasks, processing...")
-
-            for task in pending_tasks:
-                try:
-                    logger.info(
-                        f"🔄 Processing missed task {task.id} of type {task.task_type}"
-                    )
-
-                    # Process the task
-                    result = await agent.process_task(task)
-
-                    # Mark as completed
-                    task.status = "completed"
-                    task.result = result
-                    task.save()
-
-                    # Notify completion
-                    task_events.task_completed(task_id=task.id, result=result)
-
-                    logger.info(f"✅ Missed task {task.id} successfully processed")
-
-                except Exception as e:
-                    logger.error(f"Error processing missed task {task.id}: {e}")
-                    task.status = "failed"
-                    task.result = str(e)
-                    task.save()
-
-        # Don't close connection here - let the caller manage it
-
-    except Exception as e:
-        logger.error(f"Error checking unprocessed tasks: {e}")
-        # Don't close connection in exception handler either
+def _build_pipeline_task(
+    *, user_task: UserTask, settings: Optional[UserSettings]
+) -> PipelineTask:
+    """Convert DB `UserTask` into a `PipelineTask` for the pipeline."""
+    query = (user_task.description or user_task.title or "").strip()
+    min_rel = float(getattr(settings, "min_relevance", 50.0)) if settings else 50.0
+    return PipelineTask(query=query, min_relevance=min_rel)
 
 
-async def periodic_monitoring(agent: ArxivAnalysisAgent):
-    """Periodic monitoring of active research topics"""
-    try:
-        # Check if database is already connected
-        if hasattr(db, "is_closed") and db.is_closed():
-            db.connect()
-        logger.debug("Database connection established (periodic_monitoring)")
+async def _persist_selected(
+    output: PipelineOutput, *, user_id: int
+) -> List[Tuple[int, int]]:
+    """Persist selected items into DB: ensure paper and create analysis.
 
-        # Get all active topics
-        active_topics = ResearchTopic.select().where(ResearchTopic.is_active)
-        topic_count = active_topics.count()
-        logger.debug(f"Found {topic_count} active research topics for monitoring")
+    Returns list of (analysis_id, paper_id).
+    """
+    saved: List[Tuple[int, int]] = []
+    for s in output.selected:
+        c = s.result.candidate
+        # Ensure paper exists
+        existing = await get_arxiv_paper_by_arxiv_id(c.arxiv_id)
+        if existing is None:
+            paper = await create_arxiv_paper(
+                {
+                    "arxiv_id": c.arxiv_id,
+                    "title": c.title,
+                    "authors": json.dumps([]),  # unknown authors here
+                    "summary": c.summary,
+                    "categories": json.dumps(c.categories or []),
+                    "published": c.published or c.updated,
+                    "updated": c.updated or c.published,
+                    "pdf_url": c.pdf_url or "",
+                    "abs_url": c.abs_url or "",
+                    "journal_ref": c.journal_ref,
+                    "doi": c.doi,
+                    "comment": c.comment,
+                    "primary_category": c.primary_category,
+                }
+            )
+        else:
+            paper = existing
 
-        agent.update_status(
-            "periodic_monitoring",
-            f"Periodic monitoring of {topic_count} active topics",
+        # Create analysis row
+        analysis = await create_paper_analysis(
+            paper_id=paper.id,
+            topic_id=0,  # topic not used for UserTask; keep 0 or make a dedicated mapping
+            relevance=float(s.overall_score),
+            summary=s.result.summary,
+            key_fragments=s.result.key_fragments,
+            contextual_reasoning=s.result.contextual_reasoning,
         )
-
-        for topic in active_topics:
-            try:
-                # Check if monitoring is enabled for user
-                try:
-                    settings = UserSettings.get(UserSettings.user_id == topic.user_id)
-                    logger.debug(f"UserSettings for user {topic.user_id} retrieved")
-                    if not settings.monitoring_enabled:
-                        logger.debug(f"Monitoring disabled for user {topic.user_id}")
-                        continue
-                except DoesNotExist:
-                    logger.debug(
-                        f"UserSettings for user {topic.user_id} not found, skipping"
-                    )
-                    continue
-
-                # Check when this topic was last monitored
-                user_monitoring = agent.monitoring_active.get(topic.user_id)
-                if user_monitoring:
-                    last_check = user_monitoring.get(
-                        "last_check", datetime.now() - timedelta(hours=1)
-                    )
-                    if datetime.now() - last_check < timedelta(minutes=30):
-                        logger.debug(
-                            f"Topic {topic.id} for user {topic.user_id} was recently checked, skipping"
-                        )
-                        continue  # Too early for re-check
-
-                logger.info(
-                    f"Periodic monitoring of topic {topic.id} for user {topic.user_id}"
-                )
-
-                # Perform search for new articles
-                await agent.perform_arxiv_search(
-                    topic.user_id, topic.target_topic, topic.search_area, topic.id
-                )
-                logger.debug(f"Search for new articles completed for topic {topic.id}")
-
-                # Update last check time
-                if topic.user_id in agent.monitoring_active:
-                    agent.monitoring_active[topic.user_id]["last_check"] = (
-                        datetime.now()
-                    )
-                    logger.debug(f"Last check time updated for user {topic.user_id}")
-
-            except Exception as e:
-                logger.error(f"Error monitoring topic {topic.id}: {e}")
-                # Continue with next topic instead of stopping
-                continue
-
-        # Don't close connection here - let the caller manage it
-        logger.debug("Database connection maintained (periodic_monitoring)")
-
-    except Exception as e:
-        logger.error(f"Error in periodic monitoring: {e}")
-        # Don't close connection in exception handler either
+        saved.append((analysis.id, paper.id))
+    return saved
 
 
-async def main():
-    """Main loop of arXiv analysis agent"""
-    logger.info("Starting arXiv analysis agent...")
+async def _notify_report(user_id: int, report_text: str) -> None:
+    """Create a completed Task row that the bot will pick up and send to the user."""
+    data = {"task_type": "agent_report", "user_id": user_id}
+    logger.info(f"Enqueuing completed agent_report for user {user_id}")
+    await create_task(
+        task_type="agent_report", data=data, status="completed", result=report_text
+    )
 
-    init_db()
-    logger.debug("Database initialization completed")
-    agent = ArxivAnalysisAgent()
-    logger.debug("ArxivAnalysisAgent initialized")
 
-    # Set initial status
-    agent.update_status("starting", "Starting arXiv analysis agent")
+async def _process_user_task(rt: RuntimeConfig, user_task: UserTask) -> None:
+    settings = await get_user_settings(user_task.user_id)
+    pipeline_task = _build_pipeline_task(user_task=user_task, settings=settings)
 
-    # Subscribe to events for new tasks
-    event_bus = get_event_bus()
-    logger.debug("Event bus instance obtained")
-    task_events.subscribe_to_creations(handle_task_creation)
-    logger.debug("Subscription to task creation events completed")
+    await update_agent_status(
+        agent_id=rt.agent_id,
+        status="running",
+        activity=f"processing user task {user_task.id}",
+        current_user_id=user_task.user_id,
+    )
 
-    # Start event processing in background
-    asyncio.create_task(event_bus.start_processing(poll_interval=0.5))
-    logger.debug("Background event processing started")
+    output: PipelineOutput = await run_pipeline(pipeline_task)
 
-    # Main loop - periodic monitoring of active topics
-    agent.update_status("running", "Agent is running and ready to work")
+    if output.should_notify and output.report_text:
+        # Dry-run: send report without persisting analyses
+        target_user = rt.test_user_id or user_task.user_id
+        await _notify_report(target_user, output.report_text)
+
+    if not rt.dry_run and output.selected:
+        try:
+            await _persist_selected(output, user_id=user_task.user_id)
+        except Exception as e:
+            logger.error(f"Persist selected failed for task {user_task.id}: {e}")
+
+    await update_agent_status(
+        agent_id=rt.agent_id,
+        status="idle",
+        activity="waiting",
+        current_user_id=None,
+    )
+
+
+async def main() -> None:
+    """Agent main loop: poll tasks and process them autonomously."""
+    cfg = _read_config()
+    logger.info(
+        f"Agent starting (poll={cfg.poll_seconds}s, dry_run={'yes' if cfg.dry_run else 'no'}, agent_id={cfg.agent_id})"
+    )
+
+    # Simple change detection by content hash
+    last_fingerprint: Dict[int, str] = {}
 
     while True:
         try:
-            logger.debug("Starting main agent loop iteration")
-            agent.update_status("checking_tasks", "Checking unprocessed tasks")
-
-            # Check unprocessed tasks
-            await check_and_process_pending_tasks(agent)
-
-            # Perform periodic monitoring of active topics
-            await periodic_monitoring(agent)
-
-            agent.update_status("idle", "Waiting for next monitoring cycle (5 minutes)")
-            logger.debug("Main loop iteration completed, sleeping for 5 minutes")
-            await asyncio.sleep(300)  # Check every 5 minutes
-
-        except Exception as e:
-            logger.error(f"Error in main agent loop: {e}")
-            # Don't exit the main loop on errors, just wait and continue
-            await asyncio.sleep(60)  # Wait a minute before retrying
-
-
-if __name__ == "__main__":
-    try:
-        logger.info("AI agent starting as main process")
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        logger.info("AI agent stopped by user")
-    except Exception as e:
-        logger.error(f"Critical AI agent error: {e}")
-        raise
+            tasks = await list_active_user_tasks()
+            if not tasks:
+                await update_agent_status(
+                    agent_id=cfg.agent_id,
+                    status="idle",
+                    activity="waiting",
+                )
+            for t in tasks:
+                text = f"{t.title}\n{t.description}".strip()
+                if last_fingerprint.get(t.id) != text:
+                    logger.info(f"Detected new/changed task {t.id}; running iteration")
+                    await _process_user_task(cfg, t)
+                    last_fingerprint[t.id] = text
+                else:
+                    # Periodic exploration — run anyway on a schedule
+                    await _process_user_task(cfg, t)
+            await asyncio.sleep(cfg.poll_seconds)
+        except Exception as loop_error:
+            logger.error(f"Agent loop error: {loop_error}")
+            await asyncio.sleep(min(60, cfg.poll_seconds))

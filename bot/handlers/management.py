@@ -3,13 +3,18 @@ from aiogram.filters import Command
 from aiogram.types import Message
 from aiogram.enums import ParseMode
 import re
-import json
 
 from bot.utils import escape_html
-from shared.database import db, ResearchTopic, UserSettings, Task, ensure_connection
-from peewee import DoesNotExist
+from shared.db import (
+    ensure_connection,
+    deactivate_user_topics,
+    create_research_topic,
+    get_or_create_user_settings,
+    create_task,
+    swap_user_active_topics,
+    update_user_settings,
+)
 from shared.logger import get_logger
-from shared.event_system import task_events
 
 router = Router(name="management")
 
@@ -60,43 +65,24 @@ async def command_topic_handler(message: Message) -> None:
             return
 
         # Deactivate previous user topics
-        ResearchTopic.update(is_active=False).where(
-            ResearchTopic.user_id == user_id, ResearchTopic.is_active
-        ).execute()
+        await deactivate_user_topics(user_id)
 
         # Create new topic
-        topic = ResearchTopic.create(
-            user_id=user_id,
-            target_topic=target_topic,
-            search_area=search_area,
-            is_active=True,
-        )
+        topic = await create_research_topic(user_id, target_topic, search_area)
 
         # Create user settings if they don't exist
-        try:
-            UserSettings.get(UserSettings.user_id == user_id)
-        except DoesNotExist:
-            UserSettings.create(user_id=user_id)
+        await get_or_create_user_settings(user_id)
 
         # Create task for AI agent to start monitoring
-        task = Task.create(
+        await create_task(
             task_type="start_monitoring",
-            data=json.dumps(
-                {
-                    "user_id": user_id,
-                    "topic_id": topic.id,
-                    "target_topic": target_topic,
-                    "search_area": search_area,
-                }
-            ),
+            data={
+                "user_id": user_id,
+                "topic_id": topic.id,
+                "target_topic": target_topic,
+                "search_area": search_area,
+            },
             status="pending",
-        )
-
-        # Notify agent
-        task_events.task_created(
-            task_id=task.id,
-            task_type="start_monitoring",
-            data={"user_id": user_id, "topic_id": topic.id},
         )
 
         message_text = (
@@ -126,7 +112,7 @@ async def command_switch_themes_handler(message: Message) -> None:
             return
 
         user_id = message.from_user.id
-        
+
         # Ensure database connection
         try:
             ensure_connection()
@@ -136,36 +122,24 @@ async def command_switch_themes_handler(message: Message) -> None:
             return
 
         try:
-            topic = ResearchTopic.get(
-                ResearchTopic.user_id == user_id, ResearchTopic.is_active
-            )
-
-            # Swap topics
-            old_target = topic.target_topic
-            old_area = topic.search_area
-
-            topic.target_topic = old_area
-            topic.search_area = old_target
-            topic.save()
+            topic = await swap_user_active_topics(user_id)
+            if topic is None:
+                await message.answer(
+                    "❌ <b>Topics not set</b>\n\nFirst use /topic to set topics.",
+                    parse_mode=ParseMode.HTML,
+                )
+                return
 
             # Create task to restart monitoring
-            task = Task.create(
+            await create_task(
                 task_type="restart_monitoring",
-                data=json.dumps(
-                    {
-                        "user_id": user_id,
-                        "topic_id": topic.id,
-                        "target_topic": topic.target_topic,
-                        "search_area": topic.search_area,
-                    }
-                ),
+                data={
+                    "user_id": user_id,
+                    "topic_id": topic.id,
+                    "target_topic": topic.target_topic,
+                    "search_area": topic.search_area,
+                },
                 status="pending",
-            )
-
-            task_events.task_created(
-                task_id=task.id,
-                task_type="restart_monitoring",
-                data={"user_id": user_id, "topic_id": topic.id},
             )
 
             message_text = (
@@ -177,9 +151,9 @@ async def command_switch_themes_handler(message: Message) -> None:
 
             await message.answer(message_text, parse_mode=ParseMode.HTML)
 
-        except DoesNotExist:
+        except Exception:
             await message.answer(
-                "❌ <b>Topics not set</b>\n\n" "First use /topic to set topics.",
+                "❌ <b>Topics not set</b>\n\nFirst use /topic to set topics.",
                 parse_mode=ParseMode.HTML,
             )
 
@@ -199,7 +173,7 @@ async def command_pause_handler(message: Message) -> None:
             return
 
         user_id = message.from_user.id
-        
+
         # Ensure database connection
         try:
             ensure_connection()
@@ -209,16 +183,14 @@ async def command_pause_handler(message: Message) -> None:
             return
 
         try:
-            settings = UserSettings.get(UserSettings.user_id == user_id)
-            settings.monitoring_enabled = False
-            settings.save()
+            await update_user_settings(user_id, monitoring_enabled=False)
 
             await message.answer(
-                "⏸️ <b>Monitoring paused</b>\n\n" "Use /resume to resume.",
+                "⏸️ <b>Monitoring paused</b>\n\nUse /resume to resume.",
                 parse_mode=ParseMode.HTML,
             )
 
-        except DoesNotExist:
+        except Exception:
             await message.answer("❌ User settings not found.")
 
         # Don't close connection here - let the caller manage it
@@ -237,7 +209,7 @@ async def command_resume_handler(message: Message) -> None:
             return
 
         user_id = message.from_user.id
-        
+
         # Ensure database connection
         try:
             ensure_connection()
@@ -247,9 +219,7 @@ async def command_resume_handler(message: Message) -> None:
             return
 
         try:
-            settings = UserSettings.get(UserSettings.user_id == user_id)
-            settings.monitoring_enabled = True
-            settings.save()
+            await update_user_settings(user_id, monitoring_enabled=True)
 
             await message.answer(
                 "▶️ <b>Monitoring resumed</b>\n\n"
@@ -257,7 +227,7 @@ async def command_resume_handler(message: Message) -> None:
                 parse_mode=ParseMode.HTML,
             )
 
-        except DoesNotExist:
+        except Exception:
             await message.answer("❌ User settings not found.")
 
         # Don't close connection here - let the caller manage it
@@ -265,6 +235,3 @@ async def command_resume_handler(message: Message) -> None:
     except Exception as e:
         logger.error(f"Error in /resume command: {e}")
         await message.answer("❌ An error occurred while resuming.")
-
-
-
