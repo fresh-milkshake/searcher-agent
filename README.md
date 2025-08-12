@@ -185,11 +185,6 @@ uv run python start_api.py    # 🌐 REST API on http://localhost:8000
 <td><code>/set_notification instant 80</code></td>
 </tr>
 <tr>
-<td><code>/set_search_depth</code></td>
-<td>Set search depth in days</td>
-<td><code>/set_search_depth 14</code></td>
-</tr>
-<tr>
 <td><code>/reset_settings</code></td>
 <td>Reset to defaults</td>
 <td>-</td>
@@ -201,12 +196,9 @@ uv run python start_api.py    # 🌐 REST API on http://localhost:8000
 </tr>
 </table>
 
-#### Topics (optional)
+#### Topics (legacy)
 
-For legacy topic-based monitoring you can still use:
-
-- `/topic "target topic" "search area"`
-- `/switch_themes`
+Legacy topic-based monitoring commands have been removed from the default bot experience. Use `/task` to create autonomous tasks instead.
 
 ### Group Chat Support
 

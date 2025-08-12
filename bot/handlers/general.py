@@ -28,10 +28,10 @@ async def command_start_handler(message: Message) -> None:
         user_name = message.from_user.full_name
 
     help_text = dedent(f"""
-    🔬 Hello, {user_name}! I'm your assistant that explores arXiv and finds papers useful for your goals.
+    🔬 Hello, {user_name}! I'm your assistant that explores research sources and finds items useful for your goals.
 
     📌 <b>How it works</b>
-    • You set a task. I search arXiv, evaluate relevance, and send you clear, friendly summaries.
+    • You create a task. I search arXiv, Google Scholar, PubMed, and GitHub, evaluate relevance, and send you clear summaries.
 
     📋 <b>Main commands</b>
     • /task "Title" description — create a new autonomous search task
@@ -44,11 +44,8 @@ async def command_start_handler(message: Message) -> None:
     • /settings — view current settings
     • /set_relevance relevance &lt;0-100&gt; — set relevance threshold
     • /set_notification [instant|daily|weekly] &lt;0-100&gt;
-    • /set_search_depth &lt;days&gt;
     • /reset_settings — defaults
-
-    🗣️ <b>Group chats</b>
-    • /set_group — send notifications to this group
+    • /set_group — route notifications to this group (run in group chat)
     • /unset_group — back to personal chat
 
     🧭 <b>Tip</b>
@@ -76,9 +73,7 @@ async def command_status_handler(message: Message) -> None:
         topic = await get_active_topic_by_user(user_id)
         if not topic:
             await message.answer(
-                "❌ <b>Topics not set</b>\n\n"
-                'Use command /topic "target topic" "search area" '
-                "to start monitoring.",
+                "ℹ️ No legacy topics configured. Use /task to create a new autonomous task.",
                 parse_mode=ParseMode.HTML,
             )
             return
@@ -130,8 +125,8 @@ async def command_status_handler(message: Message) -> None:
         status_text = dedent(f"""
         📊 <b>Monitoring Status</b>
 
-        🎯 <b>Target Topic:</b> {topic.target_topic}
-        🔍 <b>Search Area:</b> {topic.search_area}
+        🎯 <b>Legacy Target Topic:</b> {topic.target_topic}
+        🔍 <b>Legacy Search Area:</b> {topic.search_area}
         📅 <b>Created:</b> {topic.created_at.strftime("%d.%m.%Y %H:%M")}
 
         🤖 <b>Monitoring:</b> {monitoring_status}
@@ -170,7 +165,7 @@ async def command_history_handler(message: Message) -> None:
             await message.answer(
                 "📚 <b>History is empty</b>\n\n"
                 "Relevant articles not found yet.\n"
-                "Try expanding search criteria through /settings.",
+                "Create a task with /task to get started.",
                 parse_mode=ParseMode.HTML,
             )
             return

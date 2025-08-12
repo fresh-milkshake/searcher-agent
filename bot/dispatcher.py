@@ -16,7 +16,6 @@ from shared.db import init_db, list_completed_tasks_since
 from shared.logger import get_logger
 from bot.handlers import (
     general_router,
-    management_router,
     settings_router,
     notifications_router,
     tasks_router,
@@ -37,7 +36,6 @@ logger = get_logger(__name__)
 bot = Bot(token=BOT_TOKEN)
 
 dp = Dispatcher()
-dp.include_router(management_router)
 dp.include_router(settings_router)
 dp.include_router(notifications_router)
 dp.include_router(tasks_router)
