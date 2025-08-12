@@ -31,7 +31,7 @@ Shortcuts:
 - Create a bot: [@BotFather](https://t.me/BotFather)
 - Get your API key from [OpenAI](https://platform.openai.com/api-keys)/[OpenRouter](https://openrouter.ai/)
 - Install uv: [docs.astral.sh/uv](https://docs.astral.sh/uv/)
-- Run bot and agent: [getting-started](getting-started.html)
+- Run bot and agent: [getting-started](getting-started)
 
 ## Examples of messages you’ll see
 
