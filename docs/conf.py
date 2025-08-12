@@ -92,6 +92,14 @@ html_theme = "furo"
 html_static_path = ["_static"]
 html_title = project
 
+# Include floating GitHub button assets
+html_css_files = [
+    "floating-button.css",
+]
+html_js_files = [
+    "floating-button.js",
+]
+
 html_theme_options = {
     "footer_icons": [
         {

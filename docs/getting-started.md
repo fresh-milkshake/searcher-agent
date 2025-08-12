@@ -136,6 +136,6 @@ uv run python start_agent.py
 - Telegram bots FAQ: [telegram.org/faq#bots](https://telegram.org/faq#bots)
 - Project author: [fresh-milkshake](https://github.com/fresh-milkshake)
 
-See also: [Usage](usage), [For everyone](for-everyone), [Use cases](use-cases).
+See also: [Usage](usage), [Use cases](use-cases).
 
 
