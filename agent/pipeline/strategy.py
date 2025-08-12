@@ -1,6 +1,6 @@
-"""Agentic strategy and query generation using output_type.
+"""Agentic strategy and query generation using ``output_type``.
 
-Produces a `QueryPlan` with structured `GeneratedQuery` items.
+Produces a :class:`QueryPlan` with structured :class:`GeneratedQuery` items.
 """
 
 import os
@@ -38,6 +38,9 @@ async def generate_query_plan(task: PipelineTask) -> QueryPlan:
 
     Falls back gracefully to a deterministic heuristic if the agent returns
     nothing or invalid output.
+
+    :param task: The pipeline task describing user intent and constraints.
+    :returns: A :class:`QueryPlan` with up to ``task.max_queries`` queries.
     """
 
     prompt = dedent(

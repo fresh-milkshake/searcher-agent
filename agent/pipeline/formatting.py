@@ -26,6 +26,11 @@ _FORMATTER = Agent(
 
 
 def _fallback_format(output: PipelineOutput) -> str:
+    """Local compact HTML formatter used when the agent is not available.
+
+    :param output: Full pipeline output to format.
+    :returns: Telegram-friendly HTML string.
+    """
     logger.debug(
         f"Fallback formatting: items={len(output.analyzed)} queries={len(output.generated_queries)}"
     )
@@ -50,7 +55,11 @@ def _fallback_format(output: PipelineOutput) -> str:
 
 
 async def to_telegram_html_agent(output: PipelineOutput) -> str:
-    """Agent-based formatter with `output_type`; falls back to local template."""
+    """Agent-based formatter; falls back to local template on failure.
+
+    :param output: Full pipeline output to format.
+    :returns: Telegram-friendly HTML string.
+    """
     try:
         logger = get_logger(__name__)
         # Prepare compact JSON-like context to keep tokens low
@@ -85,5 +94,9 @@ async def to_telegram_html_agent(output: PipelineOutput) -> str:
 
 
 def to_telegram_html(output: PipelineOutput) -> str:
-    """Synchronous facade using the fallback to avoid event loop requirements."""
+    """Synchronous facade using the fallback to avoid event loop requirements.
+
+    :param output: Full pipeline output to format.
+    :returns: Telegram-friendly HTML string.
+    """
     return _fallback_format(output)

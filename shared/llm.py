@@ -1,3 +1,16 @@
+"""Shared LLM model registry for agents.
+
+Configures multiple model backends (OpenAI, OpenRouter, Ollama-compatible) and
+exposes typed model objects for use with the Agents SDK.
+
+Environment variables:
+- ``OPENAI_API_KEY``
+- ``OPENROUTER_API_KEY``
+
+:ivar AGENT_MODEL: Default chat model for text agents.
+:ivar MULTIMODAL_MODEL: Default model for multimodal agents.
+"""
+
 import os
 from agents import OpenAIChatCompletionsModel
 from openai import AsyncOpenAI

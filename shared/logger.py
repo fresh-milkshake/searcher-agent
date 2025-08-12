@@ -1,6 +1,6 @@
 """Logging configuration using Loguru.
 
-- File sink: captures ALL logs (DEBUG+) to `logs/YYYY-MM-DD.log`
+- File sink: captures ALL logs (DEBUG+) to ``logs/YYYY-MM-DD.log``
 - Console sink: level is configurable per process (default INFO)
 """
 
@@ -16,7 +16,11 @@ _CONFIGURED: bool = False
 
 
 def _configure_loguru(console_level: int = logging.INFO) -> None:
-    """Configure Loguru sinks once per process."""
+    """Configure Loguru sinks once per process.
+
+    :param console_level: Console log level (e.g., ``logging.INFO``).
+    :returns: ``None``.
+    """
     global _CONFIGURED
     if _CONFIGURED:
         return
@@ -63,11 +67,19 @@ def setup_logger(name: str, log_level: int = logging.INFO):
     Note: ``name`` is not required by Loguru to display the module name; the
     format uses ``{name}`` from the call site. We keep the signature for
     backward compatibility.
+
+    :param name: Logger name (unused by Loguru, retained for API stability).
+    :param log_level: Console log level.
+    :returns: Configured Loguru logger.
     """
     _configure_loguru(console_level=log_level)
     return _loguru_logger
 
 
 def get_logger(name: str):
-    """Get configured Loguru logger."""
+    """Get configured Loguru logger.
+
+    :param name: Logger name (unused by Loguru, retained for API stability).
+    :returns: Configured Loguru logger.
+    """
     return setup_logger(name)

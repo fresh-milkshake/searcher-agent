@@ -21,6 +21,11 @@ _TOKEN_RE = re.compile(r"\w+", re.UNICODE)
 
 
 def _tokenize(text: str) -> List[str]:
+    """Tokenize a string into lowercase word characters.
+
+    :param text: Input string.
+    :returns: List of tokens.
+    """
     return [t.lower() for t in _TOKEN_RE.findall(text or "")]  # naive but fast
 
 
@@ -32,7 +37,13 @@ def _bm25_scores(
 ) -> List[float]:
     """Compute BM25 scores for pre-tokenized docs.
 
-    Based on standard BM25 with idf = ln((N - n + 0.5)/(n + 0.5) + 1).
+    Based on standard BM25 with ``idf = ln((N - n + 0.5)/(n + 0.5) + 1)``.
+
+    :param query_tokens: Tokens of the query.
+    :param documents: List of token lists for each document.
+    :param k1: BM25 parameter (default 1.5).
+    :param b: BM25 parameter (default 0.75).
+    :returns: A list of scores aligned with ``documents``.
     """
 
     N = len(documents)
@@ -73,21 +84,12 @@ def rank_candidates(
 ) -> List[PaperCandidate]:
     """Rank candidates with BM25 over title + summary and return top-k.
 
-    Parameters
-    ----------
-    query:
-        Natural-language query.
-    candidates:
-        Iterable of :class:`PaperCandidate` to be ranked. Candidates are
-        copied to a list internally and scores are written to their
-        ``bm25_score`` attribute.
-    top_k:
-        Number of items to return after sorting by score and recency.
-
-    Returns
-    -------
-    list[PaperCandidate]
-        The top-k candidates, sorted by descending score and recency.
+    :param query: Natural-language query.
+    :param candidates: Iterable of :class:`PaperCandidate` to be ranked. Candidates
+                       are copied to a list internally and scores are written to
+                       their ``bm25_score`` attribute.
+    :param top_k: Number of items to return after sorting by score and recency.
+    :returns: The top-k candidates, sorted by descending score and recency.
     """
 
     logger.debug(f"Ranking {len(list(candidates))} candidates, top_k={top_k}")

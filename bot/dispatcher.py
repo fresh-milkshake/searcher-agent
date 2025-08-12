@@ -1,3 +1,9 @@
+"""Telegram bot dispatcher and bootstrap.
+
+Initializes routers, background tasks, and starts long-polling using aiogram.
+Reads environment with ``dotenv`` and ensures database is initialized.
+"""
+
 import asyncio
 import os
 import sys
@@ -39,6 +45,14 @@ dp.include_router(general_router)
 
 
 async def main() -> None:
+    """Start the bot dispatcher and background workers.
+
+    - Ensures database is initialized.
+    - Launches background tasks for analyses and completed task delivery.
+    - Starts long polling.
+
+    :returns: ``None``.
+    """
     logger.info("Starting Telegram bot...")
 
     await init_db()

@@ -2,7 +2,7 @@
 
 This module provides:
 - Query generation (simple heuristic without embeddings)
-- arXiv retrieval through `shared.arxiv_parser`
+- arXiv retrieval through ``shared.arxiv_parser``
 
 All functions are synchronous wrappers around sync parsers to keep things
 simple for initial integration. The pipeline orchestrator can run them in
@@ -22,9 +22,12 @@ logger = get_logger(__name__)
 def _normalize_query_for_arxiv(query: str) -> str:
     """Normalize boolean query to arXiv syntax and drop unsupported/noisy terms.
 
-    - Remove proximity operators like NEAR/x
+    - Remove proximity operators like ``NEAR/x``
     - Remove ultra-generic tokens that harm recall on arXiv (e.g., pdf, document)
     - Collapse whitespace
+
+    :param query: Raw query string.
+    :returns: Cleaned query string suitable for arXiv search.
     """
     import re
 
@@ -49,27 +52,15 @@ def arxiv_search(
     max_results: int = 100,
     start: int = 0,
 ) -> List[PaperCandidate]:
-    """Search arXiv and convert results to ``PaperCandidate`` items.
+    """Search arXiv and convert results to :class:`PaperCandidate` items.
 
-    Parameters
-    ----------
-    query:
-        Search query string.
-    categories:
-        Optional list of arXiv categories, e.g. ``["cs.AI", "cs.LG"]``.
-    max_results:
-        Page size for the search request. Default: 100.
-    start:
-        Offset for pagination. Default: 0.
+    :param query: Search query string.
+    :param categories: Optional list of arXiv categories, e.g. ``["cs.AI", "cs.LG"]``.
+    :param max_results: Page size for the search request (default 100).
+    :param start: Offset for pagination (default 0).
+    :returns: A list of candidate papers converted from arXiv results.
 
-    Returns
-    -------
-    list[PaperCandidate]
-        A list of candidate papers converted from arXiv results.
-
-    Examples
-    --------
-    .. code-block:: python
+    Example::
 
         items = arxiv_search(query="RAG AND small datasets", max_results=10)
         print(len(items))
@@ -112,19 +103,10 @@ def collect_candidates(
 ) -> List[PaperCandidate]:
     """Run arXiv search for each query and collect unique candidates by id.
 
-    Parameters
-    ----------
-    task:
-        The pipeline task providing categories and other context.
-    queries:
-        Iterable of search query strings.
-    per_query_limit:
-        Max results retrieved for each query. Default: 50.
-
-    Returns
-    -------
-    list[PaperCandidate]
-        Unique candidates from all queries.
+    :param task: The pipeline task providing categories and other context.
+    :param queries: Iterable of search query strings.
+    :param per_query_limit: Max results retrieved for each query (default 50).
+    :returns: Unique candidates from all queries.
     """
 
     logger = get_logger(__name__)
@@ -154,9 +136,10 @@ def collect_candidates(
 def _broaden_query(query: str) -> List[str]:
     """Generate broader variants of a query to improve recall.
 
-    Examples
-    --------
-    .. code-block:: python
+    :param query: Base query string using ``AND`` between tokens.
+    :returns: A small list of broader variants.
+
+    Example::
 
         _broaden_query("transformers AND medical AND imaging")
         # ['transformers AND medical', 'transformers AND medical', 'transformers medical imaging']

@@ -32,6 +32,14 @@ logger = get_logger(__name__)
 
 @dataclass
 class RuntimeConfig:
+    """In-memory configuration for the agent manager.
+
+    :ivar poll_seconds: Poll interval in seconds for the main loop.
+    :ivar dry_run: If ``True``, do not persist analyses; only notify.
+    :ivar agent_id: Identifier reported in status updates.
+    :ivar test_user_id: Optional override to send notifications to a test user.
+    """
+
     poll_seconds: int = 30
     dry_run: bool = False
     agent_id: str = "main_agent"
@@ -39,7 +47,10 @@ class RuntimeConfig:
 
 
 def _read_config() -> RuntimeConfig:
-    """Load runtime config from environment variables."""
+    """Load runtime config from environment variables.
+
+    :returns: A populated :class:`RuntimeConfig` instance.
+    """
     poll = int(os.getenv("AGENT_POLL_SECONDS", "30"))
     dry = os.getenv("AGENT_DRY_RUN", "0").lower() in {"1", "true", "yes"}
     agent_id = os.getenv("AGENT_ID", "main_agent")
@@ -57,7 +68,12 @@ def _read_config() -> RuntimeConfig:
 def _build_pipeline_task(
     *, user_task: UserTask, settings: Optional[UserSettings]
 ) -> PipelineTask:
-    """Convert DB `UserTask` into a `PipelineTask` for the pipeline."""
+    """Convert DB ``UserTask`` into a :class:`PipelineTask` for the pipeline.
+
+    :param user_task: Source task from the database.
+    :param settings: Per-user settings influencing thresholds.
+    :returns: A :class:`PipelineTask` ready for execution.
+    """
     query = (user_task.description or user_task.title or "").strip()
     min_rel = float(getattr(settings, "min_relevance", 50.0)) if settings else 50.0
     return PipelineTask(query=query, min_relevance=min_rel)
@@ -68,7 +84,9 @@ async def _persist_selected(
 ) -> List[Tuple[int, int]]:
     """Persist selected items into DB: ensure paper and create analysis.
 
-    Returns list of (analysis_id, paper_id).
+    :param output: Pipeline output with selected items.
+    :param user_id: The owner of the task for association.
+    :returns: List of ``(analysis_id, paper_id)`` pairs.
     """
     saved: List[Tuple[int, int]] = []
     for s in output.selected:
@@ -110,7 +128,12 @@ async def _persist_selected(
 
 
 async def _notify_report(user_id: int, report_text: str) -> None:
-    """Create a completed Task row that the bot will pick up and send to the user."""
+    """Create a completed Task row that the bot will pick up and send to the user.
+
+    :param user_id: Telegram or internal user identifier.
+    :param report_text: Plain-text report to be delivered.
+    :returns: ``None``.
+    """
     data = {"task_type": "agent_report", "user_id": user_id}
     logger.info(f"Enqueuing completed agent_report for user {user_id}")
     await create_task(
@@ -119,6 +142,12 @@ async def _notify_report(user_id: int, report_text: str) -> None:
 
 
 async def _process_user_task(rt: RuntimeConfig, user_task: UserTask) -> None:
+    """Process one user task: run pipeline, persist, and notify if needed.
+
+    :param rt: Runtime configuration.
+    :param user_task: Task pulled from the database queue.
+    :returns: ``None``.
+    """
     settings = await get_user_settings(user_task.user_id)
     pipeline_task = _build_pipeline_task(user_task=user_task, settings=settings)
 
@@ -151,7 +180,10 @@ async def _process_user_task(rt: RuntimeConfig, user_task: UserTask) -> None:
 
 
 async def main() -> None:
-    """Agent main loop: poll tasks and process them autonomously."""
+    """Agent main loop: poll tasks and process them autonomously.
+
+    :returns: ``None``.
+    """
     cfg = _read_config()
     logger.info(
         f"Agent starting (poll={cfg.poll_seconds}s, dry_run={'yes' if cfg.dry_run else 'no'}, agent_id={cfg.agent_id})"

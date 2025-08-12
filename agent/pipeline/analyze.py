@@ -3,7 +3,7 @@
 This module provides a minimal async analysis function that:
 - Reduces context (abstract only for now)
 - Calls the shared LLM model once per paper
-- Returns structured `AnalysisResult` instances
+- Returns structured ``AnalysisResult`` instances
 
 Retries and concurrency limits can be layered in the orchestrator later.
 """
@@ -48,19 +48,10 @@ def _build_prompt(
 ) -> str:
     """Build a compact analysis prompt for the LLM.
 
-    Parameters
-    ----------
-    task_query:
-        The user task description used to judge relevance.
-    candidate:
-        The paper candidate to analyze.
-    snippets:
-        Optional extra text fragments to include (e.g., quotes).
-
-    Returns
-    -------
-    str
-        A compact prompt string for the analyzer agent.
+    :param task_query: The user task description used to judge relevance.
+    :param candidate: The paper candidate to analyze.
+    :param snippets: Optional extra text fragments to include (e.g., quotes).
+    :returns: A compact prompt string for the analyzer agent.
     """
     text_snippets = "\n\n".join(snippets) if snippets else ""
     return dedent(
@@ -85,17 +76,9 @@ async def analyze_candidates(
     set, uses the configured LLM agent to produce structured outputs.
     Otherwise, computes a quick overlap-based heuristic.
 
-    Parameters
-    ----------
-    task_query:
-        The task description that guides relevance.
-    analysis_inputs:
-        Ranked inputs containing candidates and optional snippets.
-
-    Returns
-    -------
-    list[AnalysisResult]
-        One analysis per input, preserving order.
+    :param task_query: The task description that guides relevance.
+    :param analysis_inputs: Ranked inputs containing candidates and optional snippets.
+    :returns: One :class:`AnalysisResult` per input, preserving order.
     """
 
     results: List[AnalysisResult] = []
@@ -160,19 +143,11 @@ async def analyze_candidates(
 
 
 def _heuristic_relevance(task_query: str, candidate: PaperCandidate) -> float:
-    """Compute a quick overlap-based relevance in [0, 100].
+    """Compute a quick overlap-based relevance in ``[0, 100]``.
 
-    Parameters
-    ----------
-    task_query:
-        The task description.
-    candidate:
-        The paper candidate.
-
-    Returns
-    -------
-    float
-        A score in the range [0, 100].
+    :param task_query: The task description.
+    :param candidate: The paper candidate.
+    :returns: A score in the range ``[0, 100]``.
     """
     import re
 
@@ -191,19 +166,11 @@ def _heuristic_relevance(task_query: str, candidate: PaperCandidate) -> float:
 
 
 def _truncate_summary(text: str, max_chars: int = 800) -> str:
-    """Return a summary truncated to ``max_chars``.
+    """Return a summary truncated to a maximum number of characters.
 
-    Parameters
-    ----------
-    text:
-        Source text to truncate.
-    max_chars:
-        Maximum number of characters to retain. Default: 800.
-
-    Returns
-    -------
-    str
-        The truncated summary string.
+    :param text: Source text to truncate.
+    :param max_chars: Maximum number of characters to retain (default 800).
+    :returns: The truncated summary string.
     """
     s = (text or "").strip()
     return s[:max_chars]

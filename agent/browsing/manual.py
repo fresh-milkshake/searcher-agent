@@ -1,6 +1,6 @@
 """Manual browsing utilities for arXiv.
 
-Provides a simple `ArxivBrowser` class that accepts search queries and returns
+Provides a simple :class:`ArxivBrowser` class that accepts search queries and returns
 results in a convenient, strongly-typed form using the shared arXiv parser.
 """
 
@@ -18,9 +18,7 @@ class ArxivBrowser:
     - Iterate over all results for a query in chunks
     - Retrieve a single paper by arXiv ID
 
-    Examples
-    --------
-    .. code-block:: python
+    Example::
 
         from agent.browsing.manual import ArxivBrowser
 
@@ -32,10 +30,8 @@ class ArxivBrowser:
     def __init__(self, downloads_dir: str = "downloads") -> None:
         """Create a new browser instance.
 
-        Parameters
-        ----------
-        downloads_dir:
-            Directory to use for temporary downloads if needed.
+        :param downloads_dir: Directory to use for temporary downloads if needed.
+        :returns: ``None``.
         """
         self._parser = ArxivParser(downloads_dir=downloads_dir)
 
@@ -49,23 +45,12 @@ class ArxivBrowser:
     ) -> List[ArxivPaper]:
         """Search arXiv and return a single page of results.
 
-        Parameters
-        ----------
-        query:
-            Free-text search query.
-        max_results:
-            Maximum number of results to return in this page.
-        start:
-            Pagination start index (0-based) across the full result set.
-        categories:
-            Optional list of arXiv category filters (e.g., ``["cs.AI"]``).
-        date_from_days:
-            If provided, limit results to within the last N days.
-
-        Returns
-        -------
-        list[ArxivPaper]
-            A page of results.
+        :param query: Free-text search query.
+        :param max_results: Maximum number of results to return in this page.
+        :param start: Pagination start index (0-based) across the full result set.
+        :param categories: Optional list of arXiv category filters (e.g., ``["cs.AI"]``).
+        :param date_from_days: If provided, limit results to within the last ``N`` days.
+        :returns: A page of results.
         """
         date_from: Optional[datetime] = (
             datetime.now() - timedelta(days=date_from_days)
@@ -90,23 +75,12 @@ class ArxivBrowser:
     ) -> Iterator[ArxivPaper]:
         """Iterate over all results for a query by fetching in chunks.
 
-        Parameters
-        ----------
-        query:
-            Free-text search query.
-        categories:
-            Optional list of arXiv category filters.
-        date_from_days:
-            If provided, limit results to within the last N days.
-        chunk_size:
-            Number of results fetched per request.
-        limit:
-            If provided, stop after yielding at most ``limit`` results.
-
-        Yields
-        ------
-        ArxivPaper
-            Instances one by one, until exhausted or ``limit`` reached.
+        :param query: Free-text search query.
+        :param categories: Optional list of arXiv category filters.
+        :param date_from_days: If provided, limit results to within the last ``N`` days.
+        :param chunk_size: Number of results fetched per request.
+        :param limit: If provided, stop after yielding at most ``limit`` results.
+        :yields: :class:`ArxivPaper` instances one by one, until exhausted or ``limit`` reached.
         """
         yielded_count = 0
         start = 0
@@ -139,23 +113,12 @@ class ArxivBrowser:
     ) -> List[ArxivPaper]:
         """Collect results for a query into a list by consuming the iterator.
 
-        Parameters
-        ----------
-        query:
-            Free-text search query.
-        categories:
-            Optional list of arXiv category filters.
-        date_from_days:
-            If provided, limit results to within the last N days.
-        chunk_size:
-            Number of results fetched per request.
-        limit:
-            If provided, stop after collecting at most ``limit`` results.
-
-        Returns
-        -------
-        list[ArxivPaper]
-            Collected results list.
+        :param query: Free-text search query.
+        :param categories: Optional list of arXiv category filters.
+        :param date_from_days: If provided, limit results to within the last ``N`` days.
+        :param chunk_size: Number of results fetched per request.
+        :param limit: If provided, stop after collecting at most ``limit`` results.
+        :returns: Collected results list.
         """
         results: List[ArxivPaper] = []
         for paper in self.iter_all(
@@ -171,14 +134,7 @@ class ArxivBrowser:
     def get(self, arxiv_id: str) -> Optional[ArxivPaper]:
         """Retrieve a single paper by arXiv ID.
 
-        Parameters
-        ----------
-        arxiv_id:
-            The arXiv identifier (with or without version suffix).
-
-        Returns
-        -------
-        ArxivPaper | None
-            The corresponding instance if found; otherwise ``None``.
+        :param arxiv_id: The arXiv identifier (with or without version suffix).
+        :returns: The corresponding instance if found; otherwise ``None``.
         """
         return self._parser.get_paper_by_id(arxiv_id)

@@ -4,20 +4,13 @@ import re
 def escape_html(text: str) -> str:
     """Escape HTML special characters for Telegram HTML mode.
 
-    Parameters
-    ----------
-    text:
-        Raw text possibly containing ``&``, ``<`` and ``>``.
+    :param text: Raw text possibly containing ``&``, ``<`` and ``>``.
+    :returns: A safe string for Telegram ``parse_mode=HTML``.
 
-    Returns
-    -------
-    str
-        A safe string for Telegram ``parse_mode=HTML``.
+    Example::
 
-    Examples
-    --------
-    >>> escape_html('<b>Hi & welcome</b>')
-    '&lt;b&gt;Hi &amp; welcome&lt;/b&gt;'
+        >>> escape_html('<b>Hi & welcome</b>')
+        '&lt;b&gt;Hi &amp; welcome&lt;/b&gt;'
     """
     # First escape HTML special characters
     text = text.replace("&", "&amp;")
@@ -30,19 +23,12 @@ def escape_html(text: str) -> str:
 def remove_html_tags(text: str) -> str:
     """Remove HTML tags from a string.
 
-    Parameters
-    ----------
-    text:
-        Input text with possible tags like ``<b>``.
+    :param text: Input text with possible tags like ``<b>``.
+    :returns: Plain text with tags removed.
 
-    Returns
-    -------
-    str
-        Plain text with tags removed.
+    Example::
 
-    Examples
-    --------
-    >>> remove_html_tags('<b>Hello</b> world')
-    'Hello world'
+        >>> remove_html_tags('<b>Hello</b> world')
+        'Hello world'
     """
     return re.sub(r"<[^>]*>", "", text)

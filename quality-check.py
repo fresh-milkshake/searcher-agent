@@ -4,14 +4,11 @@ import sys
 
 
 def main(target: Optional[str] = None) -> None:
-    """
-    Run quality checks (ruff, pyright) on the specified target directory or file.
+    """Run quality checks (ruff, pyright) on a target path.
 
-    Args:
-        target: Optional directory or file to check. Defaults to "." if not provided.
-
-    Raises:
-        CalledProcessError: If any subprocess fails.
+    :param target: Optional directory or file to check. Defaults to ``"."`` if not provided.
+    :returns: ``None``.
+    :raises subprocess.CalledProcessError: If any subprocess fails.
     """
     check_target = target or "."
     commands: List[List[str]] = [

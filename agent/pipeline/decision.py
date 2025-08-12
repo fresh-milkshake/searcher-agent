@@ -19,19 +19,11 @@ logger = get_logger(__name__)
 
 
 def score_result(task: PipelineTask, result: AnalysisResult) -> float:
-    """Compute overall score in [0, 100] using relevance and simple boosts.
+    """Compute overall score in ``[0, 100]`` using relevance and simple boosts.
 
-    Parameters
-    ----------
-    task:
-        The pipeline task providing thresholds.
-    result:
-        A single analysis result to score.
-
-    Returns
-    -------
-    float
-        Score in the range [0, 100].
+    :param task: The pipeline task providing thresholds.
+    :param result: A single analysis result to score.
+    :returns: Score in the range ``[0, 100]``.
     """
 
     score = float(max(0.0, min(100.0, result.relevance)))
@@ -49,17 +41,9 @@ def select_top(
 
     The output is trimmed to at most three items to keep reports concise.
 
-    Parameters
-    ----------
-    task:
-        Pipeline task with ``min_relevance``.
-    analyzed:
-        Analysis results to select from.
-
-    Returns
-    -------
-    list[ScoredAnalysis]
-        Compact, sorted selection.
+    :param task: Pipeline task with ``min_relevance``.
+    :param analyzed: Analysis results to select from.
+    :returns: Compact, sorted selection of :class:`ScoredAnalysis`.
     """
 
     items: List[ScoredAnalysis] = []
@@ -108,17 +92,9 @@ async def make_decision_and_report(
     Uses an LLM-based reporter when available, falling back to a local
     template otherwise.
 
-    Parameters
-    ----------
-    task:
-        The source task that describes user intent.
-    selected:
-        A compact list of scored analyses.
-
-    Returns
-    -------
-    DecisionReport
-        Decision and optional report text.
+    :param task: The source task that describes user intent.
+    :param selected: A compact list of scored analyses.
+    :returns: Decision and optional report text.
     """
 
     if not selected:
@@ -160,6 +136,12 @@ async def make_decision_and_report(
 
 
 def _compact_report_text(text: Optional[str], max_chars: int = 3000) -> Optional[str]:
+    """Compact and normalize report text to a maximum number of characters.
+
+    :param text: The raw report text or ``None``.
+    :param max_chars: Maximum characters allowed (default 3000).
+    :returns: The normalized, possibly truncated text, or ``None``.
+    """
     if not text:
         return text
     t = str(text)
@@ -175,19 +157,10 @@ def _why_for_task(task_query: str, summary: str, max_len: int = 220) -> str:
 
     Prefers overlap of task terms with summary; falls back to the first sentence.
 
-    Parameters
-    ----------
-    task_query:
-        The user task description.
-    summary:
-        Candidate summary to inspect.
-    max_len:
-        Maximum length of the produced sentence. Default: 220.
-
-    Returns
-    -------
-    str
-        A concise explanation string.
+    :param task_query: The user task description.
+    :param summary: Candidate summary to inspect.
+    :param max_len: Maximum length of the produced sentence (default 220).
+    :returns: A concise explanation string.
     """
     import re
 

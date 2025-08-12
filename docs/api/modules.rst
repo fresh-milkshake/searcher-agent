@@ -6,6 +6,7 @@ Modules
 
    agent/index
    bot/index
+   api/index
    shared/index
 
 

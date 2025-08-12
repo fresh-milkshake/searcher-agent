@@ -18,35 +18,18 @@ logger = get_logger(__name__)
 async def run_pipeline(task: PipelineTask) -> PipelineOutput:
     """Execute the end-to-end research pipeline and return structured output.
 
-    Stages
-    ------
-    1) Strategy: generate multiple queries for the task
-    2) Retrieval: collect candidates from arXiv
-    3) Ranking: score with BM25 over title+abstract
-    4) Analysis: LLM/heuristic analysis of top candidates
-    5) Decision: choose items and produce a report
+    Stages::
 
-    Parameters
-    ----------
-    task:
-        Validated :class:`agent.pipeline.models.PipelineTask` describing user intent.
+      1) Strategy: generate multiple queries for the task
+      2) Retrieval: collect candidates from arXiv
+      3) Ranking: score with BM25 over title+abstract
+      4) Analysis: LLM/heuristic analysis of top candidates
+      5) Decision: choose items and produce a report
 
-    Returns
-    -------
-    PipelineOutput
-        Structured result containing analyzed items and an optional human report.
-
-    Examples
-    --------
-    .. code-block:: python
-
-        from agent.pipeline.models import PipelineTask
-        from agent.pipeline.pipeline import run_pipeline
-
-        task = PipelineTask(query="vision transformers for medical imaging")
-        output = await run_pipeline(task)
-        for item in output.analyzed:
-            print(item.candidate.title, item.relevance)
+    :param task: Validated :class:`agent.pipeline.models.PipelineTask` describing
+                 user intent.
+    :returns: Structured :class:`PipelineOutput` with analyzed items and an
+              optional human report.
     """
 
     task = PipelineTask.model_validate(task)
@@ -118,15 +101,8 @@ def run_pipeline_sync(task: PipelineTask) -> PipelineOutput:
     This helper creates and runs an event loop to execute the async pipeline in
     simple scripts or REPLs.
 
-    Parameters
-    ----------
-    task:
-        The pipeline task to execute.
-
-    Returns
-    -------
-    PipelineOutput
-        The structured pipeline output.
+    :param task: The pipeline task to execute.
+    :returns: The structured pipeline output.
     """
 
     return asyncio.run(run_pipeline(task))

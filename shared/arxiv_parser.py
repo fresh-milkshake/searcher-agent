@@ -4,9 +4,7 @@ This module provides :class:`ArxivParser` and helper functions to search for
 papers, fetch metadata, download PDFs, and extract text. It is intentionally
 lightweight and dependency-minimal.
 
-Examples
---------
-.. code-block:: python
+clearExample::
 
     from shared.arxiv_parser import ArxivParser
 
@@ -34,7 +32,22 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ArxivPaper:
-    """Class for representing a scientific article from arXiv"""
+    """Class for representing a scientific article from arXiv.
+
+    :ivar id: arXiv identifier (e.g., ``"2301.07041"``).
+    :ivar title: Paper title.
+    :ivar authors: Author names.
+    :ivar summary: Abstract text.
+    :ivar categories: arXiv categories.
+    :ivar published: Submission date.
+    :ivar updated: Last updated date.
+    :ivar pdf_url: Link to the PDF.
+    :ivar abs_url: Link to the abstract page.
+    :ivar journal_ref: Optional journal reference.
+    :ivar doi: Optional DOI.
+    :ivar comment: Optional author comment.
+    :ivar primary_category: Optional primary category.
+    """
 
     id: str
     title: str
@@ -54,19 +67,11 @@ class ArxivPaper:
 class ArxivParser:
     """Main class for working with the arXiv API.
 
-    Parameters
-    ----------
-    downloads_dir:
-        Directory used to store temporary files when downloading PDFs.
+    :param downloads_dir: Directory used to store temporary files when downloading PDFs.
+    :returns: ``None``.
     """
 
     def __init__(self, downloads_dir: str = "downloads"):
-        """
-        Initialize parser
-
-        Args:
-            downloads_dir: Directory for saving downloaded files
-        """
         self.client = arxiv.Client()
         self.downloads_dir = Path(downloads_dir)
         self.downloads_dir.mkdir(exist_ok=True)
@@ -84,29 +89,15 @@ class ArxivParser:
     ) -> List[ArxivPaper]:
         """Search articles by query with optional filters.
 
-        Parameters
-        ----------
-        query:
-            Search query string.
-        max_results:
-            Maximum number of results to return.
-        sort_by:
-            Sort criterion, e.g., ``arxiv.SortCriterion.Relevance``.
-        sort_order:
-            Sort order, e.g., ``arxiv.SortOrder.Descending``.
-        categories:
-            Category filter like ``["cs.AI", "cs.LG"]``.
-        date_from:
-            Start date for results (inclusive).
-        date_to:
-            End date for results (inclusive).
-        start:
-            Starting index for pagination (default 0).
-
-        Returns
-        -------
-        list[ArxivPaper]
-            Found papers as typed records.
+        :param query: Search query string.
+        :param max_results: Maximum number of results to return.
+        :param sort_by: Sort criterion, e.g., :data:`arxiv.SortCriterion.Relevance`.
+        :param sort_order: Sort order, e.g., :data:`arxiv.SortOrder.Descending`.
+        :param categories: Category filter like ``["cs.AI", "cs.LG"]``.
+        :param date_from: Start date for results (inclusive).
+        :param date_to: End date for results (inclusive).
+        :param start: Starting index for pagination (default 0).
+        :returns: Found papers as typed records.
         """
         try:
             # Build search query
@@ -153,15 +144,8 @@ class ArxivParser:
     def get_paper_by_id(self, arxiv_id: str) -> Optional[ArxivPaper]:
         """Get article data by ID.
 
-        Parameters
-        ----------
-        arxiv_id:
-            Article ID on arXiv (e.g., ``"2301.07041"``)
-
-        Returns
-        -------
-        ArxivPaper | None
-            The paper if found, otherwise ``None``.
+        :param arxiv_id: Article ID on arXiv (e.g., ``"2301.07041"``)
+        :returns: The paper if found, otherwise ``None``.
         """
         try:
             # Normalize ID
@@ -189,17 +173,9 @@ class ArxivParser:
     ) -> Optional[str]:
         """Download a paper's PDF file.
 
-        Parameters
-        ----------
-        paper:
-            The paper to download.
-        filename:
-            Optional filename override; defaults to a safe name from id/title.
-
-        Returns
-        -------
-        str | None
-            Path to the downloaded file or ``None`` on error.
+        :param paper: The paper to download.
+        :param filename: Optional filename override; defaults to a safe name from id/title.
+        :returns: Path to the downloaded file or ``None`` on error.
         """
         try:
             if not filename:
@@ -228,15 +204,8 @@ class ArxivParser:
     def extract_text_from_pdf(self, pdf_path: str) -> Optional[str]:
         """Extract text from a PDF file.
 
-        Parameters
-        ----------
-        pdf_path:
-            Path to the local PDF file.
-
-        Returns
-        -------
-        str | None
-            Extracted text or ``None`` on error.
+        :param pdf_path: Path to the local PDF file.
+        :returns: Extracted text or ``None`` on error.
         """
         try:
             with open(pdf_path, "rb") as file:
@@ -256,15 +225,8 @@ class ArxivParser:
     def get_paper_text_online(self, paper: ArxivPaper) -> Optional[str]:
         """Get article text online without downloading the PDF.
 
-        Parameters
-        ----------
-        paper:
-            The paper descriptor.
-
-        Returns
-        -------
-        str | None
-            The article text or ``None`` on error.
+        :param paper: The paper descriptor.
+        :returns: The article text or ``None`` on error.
         """
         try:
             # First try to get through HTML version
@@ -299,15 +261,11 @@ class ArxivParser:
     def search_by_author(
         self, author_name: str, max_results: int = 10
     ) -> List[ArxivPaper]:
-        """
-        Search articles by author
+        """Search articles by author.
 
-        Args:
-            author_name: Author name
-            max_results: Maximum number of results
-
-        Returns:
-            List of author's articles
+        :param author_name: Author name.
+        :param max_results: Maximum number of results.
+        :returns: List of the author's articles.
         """
         query = f"au:{author_name}"
         return self.search_papers(query, max_results=max_results)
@@ -315,15 +273,11 @@ class ArxivParser:
     def search_by_category(
         self, category: str, max_results: int = 10
     ) -> List[ArxivPaper]:
-        """
-        Search articles by category
+        """Search articles by category.
 
-        Args:
-            category: Category (e.g., 'cs.AI', 'cs.LG')
-            max_results: Maximum number of results
-
-        Returns:
-            List of articles in category
+        :param category: Category (e.g., ``"cs.AI"``, ``"cs.LG"``).
+        :param max_results: Maximum number of results.
+        :returns: List of articles in the category.
         """
         query = f"cat:{category}"
         return self.search_papers(query, max_results=max_results)
@@ -331,16 +285,12 @@ class ArxivParser:
     def get_recent_papers(
         self, category: Optional[str] = None, days: int = 7, max_results: int = 10
     ) -> List[ArxivPaper]:
-        """
-        Get recent articles
+        """Get recent articles.
 
-        Args:
-            category: Category filter
-            days: Number of days back
-            max_results: Maximum number of results
-
-        Returns:
-            List of recent articles
+        :param category: Category filter.
+        :param days: Number of days back from now.
+        :param max_results: Maximum number of results.
+        :returns: List of recent articles.
         """
         date_from = datetime.now() - timedelta(days=days)
 
@@ -363,7 +313,14 @@ class ArxivParser:
         date_from: Optional[datetime] = None,
         date_to: Optional[datetime] = None,
     ) -> str:
-        """Build search query with filters"""
+        """Build search query with filters.
+
+        :param query: Base query string.
+        :param categories: Optional category filters.
+        :param date_from: Optional start date.
+        :param date_to: Optional end date.
+        :returns: Composed query string for arXiv API.
+        """
 
         search_parts = [query]
 
@@ -380,7 +337,7 @@ class ArxivParser:
         return " AND ".join(search_parts)
 
     def _convert_to_arxiv_paper(self, result: arxiv.Result) -> ArxivPaper:
-        """Convert search result to ArxivPaper"""
+        """Convert search result to :class:`ArxivPaper`."""
 
         return ArxivPaper(
             id=result.entry_id.split("/")[-1],
@@ -399,7 +356,11 @@ class ArxivParser:
         )
 
     def _clean_arxiv_id(self, arxiv_id: str) -> str:
-        """Clean and normalize arXiv ID"""
+        """Clean and normalize arXiv ID.
+
+        :param arxiv_id: Raw arXiv id possibly with prefix/version.
+        :returns: Cleaned id without prefix and version.
+        """
         # Remove "arXiv:" prefix if present
         clean_id = arxiv_id.replace("arXiv:", "")
         # Remove version if present (e.g., v1, v2)
@@ -411,19 +372,33 @@ class ArxivParser:
 
 
 def search_papers(query: str, max_results: int = 10) -> List[ArxivPaper]:
-    """Quick article search"""
+    """Quick article search.
+
+    :param query: Free-text search query.
+    :param max_results: Maximum number of results to return.
+    :returns: List of :class:`ArxivPaper` instances.
+    """
     parser = ArxivParser()
     return parser.search_papers(query, max_results)
 
 
 def get_paper(arxiv_id: str) -> Optional[ArxivPaper]:
-    """Quick article retrieval by ID"""
+    """Quick article retrieval by ID.
+
+    :param arxiv_id: arXiv identifier.
+    :returns: :class:`ArxivPaper` instance or ``None``.
+    """
     parser = ArxivParser()
     return parser.get_paper_by_id(arxiv_id)
 
 
 def download_paper(arxiv_id: str, downloads_dir: str = "downloads") -> Optional[str]:
-    """Quick article download"""
+    """Quick article download.
+
+    :param arxiv_id: arXiv identifier.
+    :param downloads_dir: Directory to store the PDF file.
+    :returns: Path to the downloaded PDF or ``None``.
+    """
     parser = ArxivParser(downloads_dir)
     paper = parser.get_paper_by_id(arxiv_id)
     if paper:

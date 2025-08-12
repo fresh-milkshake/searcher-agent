@@ -24,7 +24,11 @@ logger = get_logger(__name__)
 
 
 async def get_target_chat_id(user_id: int) -> int:
-    """Return group chat ID if configured, otherwise personal user ID."""
+    """Return group chat ID if configured, otherwise personal user ID.
+
+    :param user_id: Telegram user identifier.
+    :returns: The target chat ID for notifications.
+    """
     try:
         ensure_connection()
         settings = await get_user_settings(user_id)
@@ -72,7 +76,11 @@ _simplifier_agent = Agent(
 
 
 async def simplify_for_layperson(text: str) -> str:
-    """Return a simplified plain-text version of a notification for a general audience."""
+    """Return a simplified plain-text version of a notification.
+
+    :param text: Input facts block.
+    :returns: Simplified text without markup, friendly to non-technical readers.
+    """
     try:
         result: Any = await Runner.run(_simplifier_agent, text)
         simplified = (
@@ -88,7 +96,14 @@ async def simplify_for_layperson(text: str) -> str:
 async def send_message_to_target_chat(
     bot: Bot, chat_id: int, text: str, user_id: int | None = None
 ) -> None:
-    """Send a message to a chat. Fallback to personal chat if group send fails."""
+    """Send a message to a chat. Fallback to personal chat if group send fails.
+
+    :param bot: Aiogram bot instance.
+    :param chat_id: Target chat id (group or user).
+    :param text: Message text (Telegram HTML allowed).
+    :param user_id: Optional user id for fallback delivery.
+    :returns: ``None``.
+    """
 
     def _split_message(msg: str, max_len: int = 4000) -> list[str]:
         if len(msg) <= max_len:
@@ -133,7 +148,13 @@ async def send_message_to_target_chat(
 
 
 async def send_analysis_report(bot: Bot, user_id: int, analysis_id: int) -> None:
-    """Send a structured Telegram report for a particular analysis to the target chat."""
+    """Send a structured Telegram report for a particular analysis to the target chat.
+
+    :param bot: Aiogram bot instance.
+    :param user_id: Telegram user identifier.
+    :param analysis_id: Identifier of the analysis to render and deliver.
+    :returns: ``None``.
+    """
     try:
         ensure_connection()
         result = await get_analysis_with_entities(analysis_id)
@@ -187,7 +208,12 @@ async def send_analysis_report(bot: Bot, user_id: int, analysis_id: int) -> None
 
 
 async def process_completed_task(bot: Bot, task: Any) -> None:
-    """Process a completed task and send appropriate notifications."""
+    """Process a completed task and send appropriate notifications.
+
+    :param bot: Aiogram bot instance.
+    :param task: Database task model (completed state) with payload.
+    :returns: ``None``.
+    """
     try:
         task_data = json.loads(str(task.data)) if task.data else {}
         task_type = task_data.get("task_type", getattr(task, "task_type", "unknown"))
@@ -238,7 +264,11 @@ async def process_completed_task(bot: Bot, task: Any) -> None:
 
 
 async def check_new_analyses(bot: Bot) -> None:
-    """Background task to check for new analyses and send instant notifications."""
+    """Background task to check for new analyses and send instant notifications.
+
+    :param bot: Aiogram bot instance.
+    :returns: ``None``.
+    """
     logger.info("Starting background analysis checker")
     last_checked_id = 0
     while True:
