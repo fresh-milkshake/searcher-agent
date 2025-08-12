@@ -18,11 +18,9 @@
 <p align="center">
   <a href="#what-it-does">What It Does</a> •
   <a href="#quick-setup">Quick Setup</a> •
-  <a href="#how-to-use">How to Use</a> •
-  <a href="#rest-api">REST API</a> •
   <a href="#development">Development</a> •
-  <a href="https://fresh-milkshake.github.io/searcher-agent/">Docs</a> •
-  <a href="#example-output">Example Output</a>
+  <a href="https://fresh-milkshake.github.io/searcher-agent/use-cases.html">Use Cases</a> •
+  <a href="https://fresh-milkshake.github.io/searcher-agent/">Docs</a>
 </p>
 
 </div>

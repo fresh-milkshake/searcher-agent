@@ -8,14 +8,16 @@ title: Usage
 
 - `start_bot.py`: launches the Telegram bot.
 - `start_agent.py`: starts the agent service.
+- `start_api.py`: runs the REST API on `http://localhost:8000`.
+- `main.py`: runs bot and agent together.
 
 ### Environment
 
-- `TELEGRAM_BOT_TOKEN`: required for bot; in docs build it's set to a dummy.
-
-### Development profiles
-
-- `AGENT_DRY_RUN=1`: do not persist results, only send summaries.
+- `TELEGRAM_BOT_TOKEN`: required for bot
+- `DATABASE_PATH`: SQLite database path (defaults to `database.db`)
+- `PIPELINE_USE_AGENTS_ANALYZE`: `1` to enable LLM analysis if keys are set
+- `OPENAI_API_KEY` / `OPENROUTER_API_KEY`: optional; enables LLM-based analysis
+- `AGENT_DRY_RUN=1`: do not persist results, only send summaries
 
 ## Code structure
 
@@ -35,6 +37,7 @@ Core commands (subset):
 - `/set_relevance relevance <0-100>`: set minimum relevance threshold
 - `/set_notification [instant|daily|weekly] <0-100>`: configure notifications
 - `/set_group` and `/unset_group`: switch notifications to a group chat
+- `/history`: show recent findings for your account
 
 Quick links:
 
@@ -47,7 +50,7 @@ Quick links:
 - `DATABASE_PATH`: SQLite file path; defaults to `database.db`
 - `AGENT_POLL_SECONDS`: seconds between agent iterations; default `30`
 - `AGENT_ID`: identifier for the agent; default `main_agent`
-- `PIPELINE_USE_AGENTS_ANALYZE`: `1` to enable LLM analysis; default off
+- `PIPELINE_USE_AGENTS_ANALYZE`: `1` to enable LLM analysis
 
 ## Typical workflow
 

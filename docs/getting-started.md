@@ -17,16 +17,25 @@ uv sync
 
 - Python 3.13 — get it from [python.org downloads](https://www.python.org/downloads/)
 - A Telegram Bot token — create a bot via [BotFather](https://t.me/BotFather)
-- LLM API keys: [OpenAI API key](https://platform.openai.com/api-keys),
-  [OpenRouter key](https://openrouter.ai/keys)
+- Optional LLM API keys (choose any you plan to use):
+  - [OpenAI API key](https://platform.openai.com/api-keys)
+  - [OpenRouter key](https://openrouter.ai/keys)
+  - Local Ollama server (`http://localhost:11434`)
 
-### Install uv for Python dependencies
+### Install uv (package manager)
 
-- Follow [uv install docs](https://docs.astral.sh/uv/getting-started/installation/)
-- But if you want to install uv here and now:
+- Follow the official guide: [uv installation](https://docs.astral.sh/uv/getting-started/installation/)
+
+- Windows PowerShell:
+  
+  ```powershell
+  iwr https://astral.sh/uv/install.ps1 -UseBasicParsing | iex
+  ```
+
+- macOS/Linux:
 
 ```bash
-pip install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 ### Create a Telegram bot (token)
@@ -58,13 +67,19 @@ AGENT_DRY_RUN=0
 AGENT_ID=main_agent
 
 # LLM backends
-# If you dont want to use OpenAI, then leave it like "OPENAI_API_KEY="
+# Set one or more. Leave empty to use heuristic analysis (no LLM calls).
 OPENAI_API_KEY=...
 OPENROUTER_API_KEY=...
 
 # Pipeline toggles
+# Use LLM-based analysis if keys are set (1/0)
 PIPELINE_USE_AGENTS_ANALYZE=1
 ```
+
+### Configure models (optional)
+
+Select a default model in `shared/llm.py` via the `AGENT_MODEL` constant. The
+file already contains examples for OpenAI, OpenRouter and local Ollama setups.
 
 ## Initialize the database
 
@@ -82,7 +97,15 @@ Open `docs/_build/html/index.html` in a browser to view the site.
 
 ## Running the project
 
-Run the Telegram bot and agent entrypoints:
+You can either start everything at once, or run components separately.
+
+### Start everything
+
+```bash
+uv run python main.py
+```
+
+### Run components separately
 
 ```bash
 uv run python start_bot.py
@@ -93,15 +116,17 @@ uv run python start_agent.py
 
 1. Create `.env` with `TELEGRAM_BOT_TOKEN`
 2. `uv sync`
-3. Start the bot and the agent (two terminals)
+3. Start the bot and the agent (two terminals) or run `main.py`
 4. Open Telegram and send `/start` to your bot
 5. Create a task, e.g. `/task "AI for medical imaging" Find practical studies`
 
 ## Troubleshooting
 
 - If the bot exits with “TELEGRAM_BOT_TOKEN not found”, populate `.env`.
-- If you see rate limits or model errors, set API keys and retry.
+- If you see rate limits or model errors, set API keys and retry, or disable LLM
+  analysis by setting `PIPELINE_USE_AGENTS_ANALYZE=0`.
 - Logs are written to `logs/YYYY-MM-DD.log`.
+- API runs on `http://localhost:8000` when using `start_api.py`.
 
 ## Helpful links
 

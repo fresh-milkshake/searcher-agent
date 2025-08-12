@@ -28,3 +28,20 @@ The system can help students and teachers by creating simple summaries of comple
 
 For example, students can get easy-to-understand explanations with links to the original papers. This is especially helpful for weekly reading assignments or study groups.
 
+## REST API automations
+
+Use the REST API to integrate the pipeline into internal tools or scheduled jobs:
+
+```bash
+curl -X POST http://localhost:8000/v1/run \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "AI for medical imaging",
+    "categories": ["cs.CV"],
+    "max_queries": 5,
+    "bm25_top_k": 20,
+    "max_analyze": 10,
+    "min_relevance": 50.0
+  }'
+```
+
