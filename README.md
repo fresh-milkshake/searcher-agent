@@ -47,11 +47,11 @@ Examples of tasks:
 ```mermaid
 sequenceDiagram
   participant U as User
-  participant B as TelegramBot
-  participant DB as SQLiteDB
-  participant AG as ArxivAnalysisAgent
+  participant B as Telegram Bot
+  participant DB as SQLite DB
+  participant AG as Agent
   participant AX as Data Sources
-  participant LLM as LLMService
+  participant LLM as LLM Provider
 
   U->>B: new task
   B->>DB: create task (start monitoring)
