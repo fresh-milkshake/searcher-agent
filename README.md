@@ -44,9 +44,29 @@ Examples of tasks:
 - “Summarize top benchmarks for small-context RAG”
 - “Discover recent diffusion methods for texture generation”
 
-<kbd>
-  <img src="assets/diagram.png" alt="Task Example">
-</kbd>
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant B as TelegramBot
+  participant DB as SQLiteDB
+  participant AG as ArxivAnalysisAgent
+  participant AX as Data Sources
+  participant LLM as LLMService
+
+  U->>B: new task
+  B->>DB: create task (start monitoring)
+  AG->>DB: fetch pending tasks
+  AG->>AG: process monitoring tasks
+  loop monitoring cycles
+    AG->>AX: search papers or code (query, filters)
+    AG->>AG: analyze paper
+    AG->>LLM: analyze paper / generate report / further research
+    LLM-->>AG: structured analysis
+    AG->>DB: save paper and analysis
+  end
+  B->>DB: fetch new analyses for user
+  B->>U: send analysis report
+```
 
 ---
 
