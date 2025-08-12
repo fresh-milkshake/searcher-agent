@@ -5,7 +5,7 @@ Produces a :class:`QueryPlan` with structured :class:`GeneratedQuery` items.
 
 import os
 from textwrap import dedent
-from typing import List
+from typing import List, Literal
 
 from agents import Agent, Runner
 
@@ -15,18 +15,25 @@ from .models import GeneratedQuery, PipelineTask, QueryPlan
 from .utils import retry_async
 
 logger = get_logger(__name__)
+SourceLiteral = Literal["arxiv", "scholar", "pubmed", "github"]
 
 _STRATEGY_AGENT = Agent(
     name="Query Strategist",
     model=AGENT_MODEL,
     instructions=dedent(
         """
-        You turn a user task into a compact set of boolean-friendly arXiv queries.
-        - Prefer keyword-style queries (MUST/SHOULD/NOT via AND/OR/NOT, parentheses allowed)
+        You turn a user task into a compact set of search queries. For EACH query,
+        you must also choose the most relevant source among: arXiv, Google Scholar,
+        PubMed, GitHub.
+
+        - Prefer concise keyword-style queries
         - Avoid redundancy between queries
         - Provide a short rationale per query
-        - Respect optional category constraints
+        - If source=arXiv, boolean-style with AND/OR/NOT is welcome; optional category constraints may apply
+        - If source=PubMed, prefer biomedical terms and common synonyms
+        - If source=GitHub, qualifiers like language:Python, stars:>100 are welcome
         - Keep the set small and high-precision
+        - Output JSON matching the provided schema, including the "source" field per query
         """
     ),
     output_type=QueryPlan,
@@ -43,15 +50,16 @@ async def generate_query_plan(task: PipelineTask) -> QueryPlan:
     :returns: A :class:`QueryPlan` with up to ``task.max_queries`` queries.
     """
 
-    prompt = dedent(
-        f"""
-        Task: {task.query}
-        Categories: {", ".join(task.categories) if task.categories else "none"}
-        Max queries: {task.max_queries}
-
-        Produce up to {task.max_queries} focused queries with rationales.
-        """
-    )
+    # Provide compact JSON-like prompt with optional user-suggested queries
+    import json
+    payload = {
+        "task": task.query,
+        "categories": task.categories or [],
+        "max_queries": task.max_queries,
+        "suggested_queries": task.queries or [],
+        "allowed_sources": ["arxiv", "scholar", "pubmed", "github"],
+    }
+    prompt = json.dumps(payload)
 
     logger.debug(
         f"Generating query plan (max={task.max_queries}, categories={task.categories})"
@@ -71,6 +79,19 @@ async def generate_query_plan(task: PipelineTask) -> QueryPlan:
         logger.info(f"Strategy agent produced {num_q} queries")
         if not getattr(plan_obj, "queries", None):
             raise ValueError("Empty plan")
+        # Ensure source is present for each query; if missing, apply heuristic
+        for q in plan_obj.queries:
+            if not getattr(q, "source", None):
+                # Heuristic fallback per query
+                text = (q.query_text or "").lower()
+                if any(k in text for k in ["clinical", "biomedical", "gene", "protein", "cancer", "pubmed"]):
+                    q.source = "pubmed"
+                elif any(k in text for k in ["github", "code", "implementation", "repo", "repository", "stars:"]):
+                    q.source = "github"
+                elif any(k in text for k in ["survey", "review", "meta-analysis", "literature"]):
+                    q.source = "scholar"
+                else:
+                    q.source = "arxiv"
         plan_obj.queries = plan_obj.queries[: task.max_queries]
         logger.debug(
             "Queries: " + "; ".join(q.query_text for q in plan_obj.queries[:5])
@@ -79,20 +100,39 @@ async def generate_query_plan(task: PipelineTask) -> QueryPlan:
     except Exception as error:
         logger.warning(f"Strategy agent failed, using heuristic fallback: {error}")
         base: str = task.query.strip()
+        def _infer_source(text: str) -> SourceLiteral:
+            t = text.lower()
+            if any(k in t for k in ["clinical", "biomedical", "gene", "protein", "cancer", "pubmed"]):
+                return "pubmed"
+            if any(k in t for k in ["github", "code", "implementation", "repo", "repository", "stars:"]):
+                return "github"
+            if any(k in t for k in ["survey", "review", "meta-analysis", "literature"]):
+                return "scholar"
+            return "arxiv"
+
+        base_arxiv = GeneratedQuery(
+            query_text=base, source=_infer_source(base), rationale="Direct match to task"
+        )
+        survey_q = GeneratedQuery(
+            query_text=f"{base} AND (survey OR review)",
+            source=_infer_source(base + " survey"),
+            rationale="Surveys and reviews",
+        )
+        artifacts_q = GeneratedQuery(
+            query_text=f"{base} AND (benchmark OR dataset OR code)",
+            source=_infer_source(base + " code"),
+            rationale="Practical artifacts",
+        )
+        exclude_theory_q = GeneratedQuery(
+            query_text=f"{base} NOT theory-only",
+            source=_infer_source(base),
+            rationale="Exclude purely theoretical work",
+        )
         queries: List[GeneratedQuery] = [
-            GeneratedQuery(query_text=base, rationale="Direct match to task"),
-            GeneratedQuery(
-                query_text=f"{base} AND (survey OR review)",
-                rationale="Surveys and reviews",
-            ),
-            GeneratedQuery(
-                query_text=f"{base} AND (benchmark OR dataset OR code)",
-                rationale="Practical artifacts",
-            ),
-            GeneratedQuery(
-                query_text=f"{base} NOT theory-only",
-                rationale="Exclude purely theoretical work",
-            ),
+            base_arxiv,
+            survey_q,
+            artifacts_q,
+            exclude_theory_q,
         ]
         fallback = QueryPlan(notes=None, queries=queries[: task.max_queries])
         logger.info(f"Heuristic produced {len(fallback.queries)} queries")

@@ -696,6 +696,21 @@ async def list_active_user_tasks() -> List[UserTask]:
         return list(result.scalars().all())
 
 
+async def get_most_recent_active_user_task() -> Optional[UserTask]:
+    """Return the most recently updated active user task, or ``None`` if none exist.
+
+    :returns: A single :class:`UserTask` instance or ``None`` when no active tasks.
+    """
+    async with SessionLocal() as session:
+        result = await session.execute(
+            select(UserTask)
+            .where(UserTask.status == "active")
+            .order_by(UserTask.updated_at.desc(), UserTask.created_at.desc())
+            .limit(1)
+        )
+        return result.scalars().first()
+
+
 async def list_active_queries_for_task(task_id: int) -> List[SearchQuery]:
     async with SessionLocal() as session:
         result = await session.execute(

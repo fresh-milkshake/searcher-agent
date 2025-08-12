@@ -5,7 +5,7 @@ from shared.logger import get_logger
 
 from .analyze import analyze_candidates
 from .formatting import to_telegram_html
-from .models import AnalysisInput, PipelineOutput, PipelineTask
+from .models import AnalysisInput, PipelineOutput, PipelineTask, GeneratedQuery
 from .ranking import rank_candidates
 from .search import collect_candidates, _broaden_query
 from .decision import select_top, make_decision_and_report
@@ -34,28 +34,30 @@ async def run_pipeline(task: PipelineTask) -> PipelineOutput:
 
     task = PipelineTask.model_validate(task)
 
-    # Generate queries (agentic)
-    logger.info("Stage: strategy -> queries")
+    # Always run strategy to assign sources per query; include user-suggested queries as hints
+    logger.info("Stage: strategy -> queries & sources")
     plan = await generate_query_plan(task)
-    generated_queries: List[str] = [q.query_text for q in plan.queries]
+    generated_queries: List[GeneratedQuery] = list(plan.queries)
     logger.info(f"Generated {len(generated_queries)} queries for task")
 
     # Retrieve candidates
-    logger.info("Stage: retrieval -> arXiv")
+    logger.info("Stage: retrieval -> multi-source")
     candidates = collect_candidates(task, generated_queries, per_query_limit=50)
     logger.info(f"Collected {len(candidates)} unique candidates")
 
     if not candidates:
         # Try broadening queries automatically
-        broadened: List[str] = []
-        for q in generated_queries:
-            broadened.extend(_broaden_query(q))
-        broadened = [q for q in broadened if q]
-        if broadened:
+        broadened_gq: List[GeneratedQuery] = []
+        for gq in generated_queries:
+            for b in _broaden_query(gq.query_text):
+                if not b:
+                    continue
+                broadened_gq.append(GeneratedQuery(query_text=b, source=gq.source))
+        if broadened_gq:
             logger.warning(
-                f"No candidates found; retrying with broadened queries (n={len(broadened)})"
+                f"No candidates found; retrying with broadened queries (n={len(broadened_gq)})"
             )
-            more = collect_candidates(task, broadened, per_query_limit=50)
+            more = collect_candidates(task, broadened_gq, per_query_limit=50)
             # Merge
             candidates = more
             logger.info(
@@ -88,7 +90,7 @@ async def run_pipeline(task: PipelineTask) -> PipelineOutput:
     return PipelineOutput(
         task=task,
         analyzed=analyzed,
-        generated_queries=generated_queries,
+        generated_queries=[q.query_text for q in generated_queries],
         selected=selected,
         should_notify=decision.should_notify,
         report_text=decision.report_text,

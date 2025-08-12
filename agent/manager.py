@@ -5,6 +5,7 @@ results (unless dry-run), and triggers Telegram notifications via DB tasks.
 """
 
 import asyncio
+from datetime import datetime
 import json
 import os
 from dataclasses import dataclass
@@ -18,7 +19,8 @@ from shared.db import (
     create_paper_analysis,
     create_task,
     get_user_settings,
-    list_active_user_tasks,
+    get_most_recent_active_user_task,
+    list_active_queries_for_task,
     update_agent_status,
     get_arxiv_paper_by_arxiv_id,
 )
@@ -66,17 +68,48 @@ def _read_config() -> RuntimeConfig:
 
 
 def _build_pipeline_task(
-    *, user_task: UserTask, settings: Optional[UserSettings]
+    *,
+    user_task: UserTask,
+    settings: Optional[UserSettings],
+    explicit_queries: Optional[List[str]] = None,
 ) -> PipelineTask:
     """Convert DB ``UserTask`` into a :class:`PipelineTask` for the pipeline.
 
+    Tries to extract optional fields (``queries``, ``categories``) from the task
+    description if it contains JSON.
+
     :param user_task: Source task from the database.
     :param settings: Per-user settings influencing thresholds.
+    :param explicit_queries: Optional explicit queries associated with the task.
     :returns: A :class:`PipelineTask` ready for execution.
     """
-    query = (user_task.description or user_task.title or "").strip()
+    raw_text = (user_task.description or user_task.title or "").strip()
     min_rel = float(getattr(settings, "min_relevance", 50.0)) if settings else 50.0
-    return PipelineTask(query=query, min_relevance=min_rel)
+
+    queries: Optional[List[str]] = explicit_queries if explicit_queries else None
+    categories: Optional[List[str]] = None
+    query_text: str = raw_text
+
+    # Attempt to parse JSON payloads in description for advanced control
+    try:
+        data = json.loads(raw_text)
+        if isinstance(data, dict):
+            if isinstance(data.get("query"), str):
+                query_text = data["query"].strip()
+            if isinstance(data.get("queries"), list):
+                queries = [str(x) for x in data["queries"] if str(x).strip()]
+            if isinstance(data.get("categories"), list):
+                categories = [str(x) for x in data["categories"] if str(x).strip()]
+    except Exception:
+        # Not JSON, use raw text
+        pass
+
+    return PipelineTask(
+        query=query_text,
+        min_relevance=min_rel,
+        queries=queries,
+        categories=categories,
+    )
 
 
 async def _persist_selected(
@@ -94,6 +127,9 @@ async def _persist_selected(
         # Ensure paper exists
         existing = await get_arxiv_paper_by_arxiv_id(c.arxiv_id)
         if existing is None:
+            # Fallbacks for non-arXiv items that may lack timestamps
+            published_ts: datetime = c.published or c.updated or datetime.now()
+            updated_ts: datetime = c.updated or c.published or published_ts
             paper = await create_arxiv_paper(
                 {
                     "arxiv_id": c.arxiv_id,
@@ -101,8 +137,8 @@ async def _persist_selected(
                     "authors": json.dumps([]),  # unknown authors here
                     "summary": c.summary,
                     "categories": json.dumps(c.categories or []),
-                    "published": c.published or c.updated,
-                    "updated": c.updated or c.published,
+                    "published": published_ts,
+                    "updated": updated_ts,
                     "pdf_url": c.pdf_url or "",
                     "abs_url": c.abs_url or "",
                     "journal_ref": c.journal_ref,
@@ -149,7 +185,18 @@ async def _process_user_task(rt: RuntimeConfig, user_task: UserTask) -> None:
     :returns: ``None``.
     """
     settings = await get_user_settings(user_task.user_id)
-    pipeline_task = _build_pipeline_task(user_task=user_task, settings=settings)
+    # Load explicit queries if configured for the task
+    explicit_queries: Optional[List[str]] = None
+    try:
+        active_queries = await list_active_queries_for_task(user_task.id)
+        if active_queries:
+            explicit_queries = [q.query_text for q in active_queries if q.query_text]
+    except Exception:
+        explicit_queries = None
+
+    pipeline_task = _build_pipeline_task(
+        user_task=user_task, settings=settings, explicit_queries=explicit_queries
+    )
 
     await update_agent_status(
         agent_id=rt.agent_id,
@@ -194,22 +241,19 @@ async def main() -> None:
 
     while True:
         try:
-            tasks = await list_active_user_tasks()
-            if not tasks:
+            task = await get_most_recent_active_user_task()
+            if not task:
                 await update_agent_status(
                     agent_id=cfg.agent_id,
                     status="idle",
                     activity="waiting",
                 )
-            for t in tasks:
-                text = f"{t.title}\n{t.description}".strip()
-                if last_fingerprint.get(t.id) != text:
-                    logger.info(f"Detected new/changed task {t.id}; running iteration")
-                    await _process_user_task(cfg, t)
-                    last_fingerprint[t.id] = text
-                else:
-                    # Periodic exploration — run anyway on a schedule
-                    await _process_user_task(cfg, t)
+                await asyncio.sleep(cfg.poll_seconds)
+                continue
+
+            # Process only the most recently updated active task
+            logger.info(f"Detected new/changed task {task.id}; running iteration")
+            await _process_user_task(cfg, task)
             await asyncio.sleep(cfg.poll_seconds)
         except Exception as loop_error:
             logger.error(f"Agent loop error: {loop_error}")

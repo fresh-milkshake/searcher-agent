@@ -5,7 +5,7 @@ across the pipeline: input tasks, intermediate candidates, and outputs.
 """
 
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -41,6 +41,13 @@ class PipelineTask(BaseModel):
     bm25_top_k: int = Field(default=20, ge=5, le=100)
     max_analyze: int = Field(default=10, ge=1, le=50)
     min_relevance: float = Field(default=50.0, ge=0.0, le=100.0)
+    queries: Optional[List[str]] = Field(
+        default=None,
+        description=(
+            "Optional user-suggested queries. The strategy agent will still decide"
+            " sources for each query."
+        ),
+    )
 
     @field_validator("query")
     @classmethod
@@ -115,6 +122,7 @@ class GeneratedQuery(BaseModel):
     """Structured query item produced by the strategy agent."""
 
     query_text: str
+    source: Literal["arxiv", "scholar", "pubmed", "github"]
     rationale: Optional[str] = None
     categories: Optional[List[str]] = None
     time_from: Optional[str] = None

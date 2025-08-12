@@ -49,7 +49,7 @@ def _fallback_format(output: PipelineOutput) -> str:
         if res.summary:
             lines.append(res.summary.strip())
         if link:
-            lines.append(f'🔗 <a href="{link}">arXiv</a>')
+            lines.append(f'🔗 <a href="{link}">Link</a>')
         lines.append("")
     return "\n".join(lines).strip()
 
