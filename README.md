@@ -43,6 +43,10 @@ Examples of tasks:
 - “Summarize top benchmarks for small-context RAG”
 - “Discover recent diffusion methods for texture generation”
 
+<kbd>
+  <img src="assets/diagram.png" alt="Task Example">
+</kbd>
+
 ---
 
 ## Quick Setup
