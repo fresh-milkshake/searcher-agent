@@ -3,7 +3,7 @@
 # 🔬 Searcher Agent
 
 <p align="center">
-  <strong>AI assistant that solves your research tasks by searching arXiv</strong>
+  <strong>AI assistant that solves your research tasks by searching multiple sources</strong>
 </p>
 
 <p align="center">
@@ -29,10 +29,11 @@
 
 ## What It Does
 
-**Turns your goal into actionable findings** — you describe a task in natural language, the assistant plans queries, searches arXiv, ranks and analyzes papers, and sends you a concise report with the most useful items.
+**Turns your goal into actionable findings** — you describe a task in natural language, the assistant plans queries, automatically chooses the best sources (arXiv, Google Scholar, PubMed, GitHub) per query, ranks and analyzes items, and sends you a concise report with the most useful findings.
 
 - Plans multiple search queries for your task
-- Retrieves candidates from arXiv
+- Selects the most relevant source per query (arXiv, Google Scholar, PubMed, GitHub)
+- Retrieves candidates from multiple sources
 - Ranks with BM25 over title + abstract
 - Analyzes top items with an LLM or a local heuristic
 - Decides whether it’s worth notifying you and composes a short report
@@ -276,6 +277,9 @@ curl -X POST http://localhost:8000/v1/run \
     "max_analyze": 10,
     "min_relevance": 50.0
   }'
+
+Notes:
+- You no longer need to specify a source. The agent will choose the best source(s) per query automatically.
 ```
 
 ---
@@ -309,10 +313,21 @@ Findings for your task: AI for medical imaging
 ### Architecture (brief)
 
 1. Strategy: generate queries from your task
-2. Retrieval: arXiv search via `shared.arxiv_parser`
+2. Retrieval: multi-source search (arXiv, Google Scholar via site-restricted DDG, PubMed, GitHub)
 3. Ranking: BM25 over title + abstract
 4. Analysis: LLM-based (or heuristic) relevance + summary
 5. Decision: select top items and compose a concise report
+
+### Integrations
+
+- arXiv: RSS/Atom via `shared.arxiv_parser`
+- Google Scholar: site-restricted DuckDuckGo search using `ddgs` (with legacy `duckduckgo_search` fallback)
+- PubMed: E-utilities (`esearch` + `esummary`)
+- GitHub: Search API v3 (repositories)
+
+### Agent scheduling behavior
+
+- The agent always processes the most recently updated active user task first.
 
 ## 📄 License
 

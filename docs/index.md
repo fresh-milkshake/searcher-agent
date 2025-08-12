@@ -25,7 +25,7 @@ api/modules
 `searcher-agent` provides an end-to-end research assistant that:
 
 - Generates multiple search queries for a user task
-- Retrieves arXiv candidates and deduplicates them
+- Retrieves candidates from multiple sources (arXiv, Google Scholar, PubMed, GitHub) and deduplicates them
 - Ranks with BM25 over title + abstract
 - Analyzes the top candidates (LLM-backed or heuristic)
 - Decides whether to notify and formats a concise report for Telegram

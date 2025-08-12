@@ -15,7 +15,7 @@ title: Usage
 
 - `TELEGRAM_BOT_TOKEN`: required for bot
 - `DATABASE_PATH`: SQLite database path (defaults to `database.db`)
-- `PIPELINE_USE_AGENTS_ANALYZE`: `1` to enable LLM analysis if keys are set
+ - `PIPELINE_USE_AGENTS_ANALYZE`: `1` to enable LLM analysis if keys are set
 - `OPENAI_API_KEY` / `OPENROUTER_API_KEY`: optional; enables LLM-based analysis
 - `AGENT_DRY_RUN=1`: do not persist results, only send summaries
 
@@ -48,9 +48,17 @@ Quick links:
 ## Configuration reference
 
 - `DATABASE_PATH`: SQLite file path; defaults to `database.db`
-- `AGENT_POLL_SECONDS`: seconds between agent iterations; default `30`
+ - `AGENT_POLL_SECONDS`: seconds between agent iterations; default `30`
 - `AGENT_ID`: identifier for the agent; default `main_agent`
 - `PIPELINE_USE_AGENTS_ANALYZE`: `1` to enable LLM analysis
+
+### Source selection
+
+- The agent automatically selects the most relevant source per query among: arXiv, Google Scholar, PubMed, GitHub. You do not need to configure a default source.
+
+### Task scheduling
+
+- The agent processes the most recently updated active task first on each iteration.
 
 ## Typical workflow
 
