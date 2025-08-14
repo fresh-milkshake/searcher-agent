@@ -1,4 +1,4 @@
-from .handlers import router as notifications_router
+from .handlers import router
 from .service import (
     process_completed_task,
     check_new_analyses,
@@ -8,7 +8,7 @@ from .service import (
 )
 
 __all__ = [
-    "notifications_router",
+    "router",
     "process_completed_task",
     "check_new_analyses",
     "send_analysis_report",

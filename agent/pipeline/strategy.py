@@ -10,7 +10,7 @@ from typing import List, Literal
 from agents import Agent, Runner
 
 from shared.llm import AGENT_MODEL
-from shared.logger import get_logger
+from shared.logging import get_logger
 from .models import GeneratedQuery, PipelineTask, QueryPlan
 from .utils import retry_async
 

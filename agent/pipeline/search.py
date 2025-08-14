@@ -12,7 +12,7 @@ threads or plain sync for now.
 from typing import Iterable, List, Optional
 
 from shared.arxiv_parser import ArxivParser
-from shared.logger import get_logger
+from shared.logging import get_logger
 from agent.browsing.manual.sources.google_scholar import GoogleScholarBrowser
 from agent.browsing.manual.sources.pubmed import PubMedBrowser
 from agent.browsing.manual.sources.github import GitHubRepoBrowser

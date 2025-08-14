@@ -142,7 +142,7 @@ async def health() -> dict[str, str]:
 
 
 @app.post("/v1/run", response_model=RunResponse)
-async def run(task: PipelineTaskRequest) -> RunResponse:  # noqa: A001 - endpoint name
+async def run(task: PipelineTaskRequest) -> RunResponse:
     """Run the research pipeline and return a compact response.
 
     The request is validated and transformed to

@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from shared.db import init_db, list_completed_tasks_since
-from shared.logger import get_logger
+from shared.logging import get_logger
 from bot.handlers import (
     general_router,
     settings_router,

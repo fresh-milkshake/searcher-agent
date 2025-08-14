@@ -1,7 +1,7 @@
 from .general import router as general_router
 from .settings import router as settings_router
-from .notifications import notifications_router
-from .tasks import router as tasks_router
+from .notifications import router as notifications_router
+from .task import router as tasks_router
 
 __all__ = [
     "general_router",

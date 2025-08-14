@@ -7,7 +7,7 @@ from agents import Agent, Runner
 
 from shared.llm import AGENT_MODEL
 from .models import PipelineOutput, TelegramSummary
-from shared.logger import get_logger
+from shared.logging import get_logger
 
 logger = get_logger(__name__)
 

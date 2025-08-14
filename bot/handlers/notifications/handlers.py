@@ -11,7 +11,7 @@ from shared.db import (
     get_user_settings,
     update_user_settings,
 )
-from shared.logger import get_logger
+from shared.logging import get_logger
 from .service import simplify_for_layperson
 
 

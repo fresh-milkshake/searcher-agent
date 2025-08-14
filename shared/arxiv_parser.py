@@ -14,6 +14,8 @@ clearExample::
         print(p.id, p.title)
 """
 
+# TODO: move this to agent/browsing/manual/sources/arxiv.py
+
 import os
 import re
 import logging

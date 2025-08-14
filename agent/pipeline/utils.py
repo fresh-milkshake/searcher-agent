@@ -18,7 +18,7 @@ Example::
 import asyncio
 from typing import Awaitable, Callable, Optional, TypeVar
 
-from shared.logger import get_logger
+from shared.logging import get_logger
 
 
 logger = get_logger(__name__)

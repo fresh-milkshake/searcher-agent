@@ -17,7 +17,7 @@ from shared.db import (
     mark_task_sent,
     mark_analysis_notified,
 )
-from shared.logger import get_logger
+from shared.logging import get_logger
 
 
 logger = get_logger(__name__)

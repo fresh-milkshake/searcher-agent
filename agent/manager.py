@@ -11,7 +11,7 @@ import os
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
-from shared.logger import get_logger
+from shared.logging import get_logger
 from shared.db import (
     UserSettings,
     UserTask,

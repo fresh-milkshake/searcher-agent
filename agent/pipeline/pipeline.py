@@ -1,7 +1,7 @@
 import asyncio
 from typing import List
 
-from shared.logger import get_logger
+from shared.logging import get_logger
 
 from .analyze import analyze_candidates
 from .formatting import to_telegram_html

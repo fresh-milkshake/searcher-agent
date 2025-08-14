@@ -21,7 +21,7 @@ from .models import (
     AnalysisResult,
     PaperCandidate,
 )
-from shared.logger import get_logger
+from shared.logging import get_logger
 from .utils import retry_async
 
 logger = get_logger(__name__)

@@ -10,7 +10,7 @@ import re
 from collections import Counter, defaultdict
 from typing import Dict, Iterable, List, Tuple
 
-from shared.logger import get_logger
+from shared.logging import get_logger
 
 from .models import PaperCandidate
 
