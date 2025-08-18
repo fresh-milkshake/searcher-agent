@@ -64,6 +64,11 @@ autodoc_mock_imports = [
     "loguru",
     "peewee",
     "agents",
+    "uvicorn",
+    "fastapi",
+    "pydantic",
+    "aiohttp",
+    "beautifulsoup4",
 ]
 
 templates_path = ["_templates"]

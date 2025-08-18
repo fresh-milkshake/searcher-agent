@@ -1,9 +1,7 @@
-Dispatcher
+ArXiv Tool
 ==========
 
-.. automodule:: bot.dispatcher
+.. automodule:: agent.browsing.tools.arxiv
    :members:
    :undoc-members:
    :show-inheritance:
-
-

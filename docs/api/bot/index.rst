@@ -4,8 +4,8 @@ Bot Package
 .. toctree::
    :maxdepth: 2
 
-   dispatcher
-   handlers
+   main
    utils
+   handlers/index
 
 

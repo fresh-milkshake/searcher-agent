@@ -5,7 +5,7 @@ Agent Package
    :maxdepth: 2
 
    manager
-   pipeline
-   browsing
+   pipeline/index
+   browsing/index
 
 
