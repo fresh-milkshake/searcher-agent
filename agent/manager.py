@@ -19,7 +19,6 @@ from shared.db import (
     create_paper_analysis,
     create_task,
     get_user_settings,
-    get_most_recent_active_user_task,
     list_active_queries_for_task,
     update_agent_status,
     get_arxiv_paper_by_arxiv_id,
@@ -166,10 +165,10 @@ async def _persist_selected(
             key_fragments=s.result.key_fragments,
             contextual_reasoning=s.result.contextual_reasoning,
         )
-        
+
         # Link analysis to user task through Finding
         await link_analysis_to_user_task(analysis, user_task)
-        
+
         saved.append((analysis.id, paper.id))
     return saved
 
@@ -197,7 +196,7 @@ async def _process_user_task(rt: RuntimeConfig, user_task: UserTask) -> None:
     """
     task_success = False
     error_message = None
-    
+
     try:
         # Start task processing
         if not await start_task_processing(user_task.id):
@@ -208,18 +207,22 @@ async def _process_user_task(rt: RuntimeConfig, user_task: UserTask) -> None:
         research_topic = await create_research_topic_for_user_task(user_task)
         if research_topic is None:
             logger.error(f"Failed to create research topic for task {user_task.id}")
-            await complete_task_processing(user_task.id, False, "Failed to create research topic")
+            await complete_task_processing(
+                user_task.id, False, "Failed to create research topic"
+            )
             return
 
         # Get user settings (using telegram_id for legacy compatibility)
         settings = await get_user_settings(research_topic.user_id)
-        
+
         # Load explicit queries if configured for the task
         explicit_queries: Optional[List[str]] = None
         try:
             active_queries = await list_active_queries_for_task(user_task.id)
             if active_queries:
-                explicit_queries = [q.query_text for q in active_queries if q.query_text]
+                explicit_queries = [
+                    q.query_text for q in active_queries if q.query_text
+                ]
         except Exception:
             explicit_queries = None
 
@@ -234,10 +237,12 @@ async def _process_user_task(rt: RuntimeConfig, user_task: UserTask) -> None:
             current_user_id=research_topic.user_id,  # Use telegram_id for status
         )
 
-        logger.info(f"Running pipeline for task {user_task.id}: {user_task.description[:50]}...")
+        logger.info(
+            f"Running pipeline for task {user_task.id}: {user_task.description[:50]}..."
+        )
         output: PipelineOutput = await run_pipeline(pipeline_task)
 
-        # Handle notifications 
+        # Handle notifications
         if output.should_notify and output.report_text:
             target_user = rt.test_user_id or research_topic.user_id
             await _notify_report(target_user, output.report_text)
@@ -245,8 +250,12 @@ async def _process_user_task(rt: RuntimeConfig, user_task: UserTask) -> None:
         # Persist results if not dry run
         if not rt.dry_run and output.selected:
             try:
-                await _persist_selected(output, user_task=user_task, topic_id=research_topic.id)
-                logger.info(f"Persisted {len(output.selected)} results for task {user_task.id}")
+                await _persist_selected(
+                    output, user_task=user_task, topic_id=research_topic.id
+                )
+                logger.info(
+                    f"Persisted {len(output.selected)} results for task {user_task.id}"
+                )
             except Exception as e:
                 logger.error(f"Persist selected failed for task {user_task.id}: {e}")
                 error_message = f"Failed to persist results: {str(e)}"
@@ -259,11 +268,11 @@ async def _process_user_task(rt: RuntimeConfig, user_task: UserTask) -> None:
         logger.error(f"Error processing task {user_task.id}: {e}")
         error_message = str(e)
         task_success = False
-    
+
     finally:
         # Complete task processing and update status
         await complete_task_processing(user_task.id, task_success, error_message)
-        
+
         await update_agent_status(
             agent_id=rt.agent_id,
             status="idle",
@@ -298,10 +307,10 @@ async def main() -> None:
             # Process the next queued task
             logger.info(f"Processing queued task {task.id}: {task.description[:50]}...")
             await _process_user_task(cfg, task)
-            
+
             # Brief pause between tasks to allow for proper status updates
             await asyncio.sleep(1)
-            
+
         except Exception as loop_error:
             logger.error(f"Agent loop error: {loop_error}")
             await update_agent_status(
