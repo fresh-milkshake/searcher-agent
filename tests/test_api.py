@@ -33,11 +33,18 @@ def test_run_happy_path(client: TestClient, monkeypatch: Any) -> None:
         )
 
         candidate = PaperCandidate(
-            arxiv_id="x1234", title="Test", summary="Sum", categories=[],
+            arxiv_id="x1234",
+            title="Test",
+            summary="Sum",
+            categories=[],
         )
         analyzed = [
             AnalysisResult(
-                candidate=candidate, relevance=80.0, summary="Good", key_fragments=None, contextual_reasoning=None
+                candidate=candidate,
+                relevance=80.0,
+                summary="Good",
+                key_fragments=None,
+                contextual_reasoning=None,
             )
         ]
         selected = [ScoredAnalysis(result=analyzed[0], overall_score=80.0)]
@@ -64,5 +71,3 @@ def test_run_happy_path(client: TestClient, monkeypatch: Any) -> None:
     assert data["report_text"] == "ok"
     assert data["generated_queries"] == ["q1"]
     assert len(data["analyzed"]) == 1
-
-

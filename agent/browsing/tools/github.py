@@ -27,7 +27,9 @@ def _item_to_dict(item: SearchItem) -> Dict[str, object]:
 
 
 @function_tool
-def github_repo_search_tool(query: str, max_results: int = 10, start: int = 0) -> List[Dict[str, object]]:
+def github_repo_search_tool(
+    query: str, max_results: int = 10, start: int = 0
+) -> List[Dict[str, object]]:
     """Search GitHub repositories via the public Search API.
 
     :param query: Free-text query string, supports qualifiers (e.g., ``language:Python``).
@@ -38,5 +40,3 @@ def github_repo_search_tool(query: str, max_results: int = 10, start: int = 0) -
     browser = GitHubRepoBrowser()
     items = browser.search(query=query, max_results=max_results, start=start)
     return [_item_to_dict(it) for it in items]
-
-

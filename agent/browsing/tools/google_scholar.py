@@ -28,7 +28,9 @@ def _item_to_dict(item: SearchItem) -> Dict[str, object]:
 
 
 @function_tool
-def google_scholar_search_tool(query: str, max_results: int = 10, start: int = 0) -> List[Dict[str, object]]:
+def google_scholar_search_tool(
+    query: str, max_results: int = 10, start: int = 0
+) -> List[Dict[str, object]]:
     """Search Google Scholar using a site-restricted DuckDuckGo query.
 
     :param query: Free-text query string.
@@ -39,5 +41,3 @@ def google_scholar_search_tool(query: str, max_results: int = 10, start: int = 0
     browser = GoogleScholarBrowser()
     items = browser.search(query=query, max_results=max_results, start=start)
     return [_item_to_dict(it) for it in items]
-
-

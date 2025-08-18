@@ -52,6 +52,7 @@ async def generate_query_plan(task: PipelineTask) -> QueryPlan:
 
     # Provide compact JSON-like prompt with optional user-suggested queries
     import json
+
     payload = {
         "task": task.query,
         "categories": task.categories or [],
@@ -73,6 +74,7 @@ async def generate_query_plan(task: PipelineTask) -> QueryPlan:
         logger.info("Strategy agent disabled via env; using heuristic queries")
         raise Exception("strategy_agent_disabled")
     try:
+        logger.info("Making a call to the strategy agent...")
         result = await retry_async(lambda: Runner.run(_STRATEGY_AGENT, prompt))
         plan_obj: QueryPlan = result.final_output
         num_q = len(plan_obj.queries) if getattr(plan_obj, "queries", None) else 0
@@ -84,11 +86,34 @@ async def generate_query_plan(task: PipelineTask) -> QueryPlan:
             if not getattr(q, "source", None):
                 # Heuristic fallback per query
                 text = (q.query_text or "").lower()
-                if any(k in text for k in ["clinical", "biomedical", "gene", "protein", "cancer", "pubmed"]):
+                if any(
+                    k in text
+                    for k in [
+                        "clinical",
+                        "biomedical",
+                        "gene",
+                        "protein",
+                        "cancer",
+                        "pubmed",
+                    ]
+                ):
                     q.source = "pubmed"
-                elif any(k in text for k in ["github", "code", "implementation", "repo", "repository", "stars:"]):
+                elif any(
+                    k in text
+                    for k in [
+                        "github",
+                        "code",
+                        "implementation",
+                        "repo",
+                        "repository",
+                        "stars:",
+                    ]
+                ):
                     q.source = "github"
-                elif any(k in text for k in ["survey", "review", "meta-analysis", "literature"]):
+                elif any(
+                    k in text
+                    for k in ["survey", "review", "meta-analysis", "literature"]
+                ):
                     q.source = "scholar"
                 else:
                     q.source = "arxiv"
@@ -100,18 +125,41 @@ async def generate_query_plan(task: PipelineTask) -> QueryPlan:
     except Exception as error:
         logger.warning(f"Strategy agent failed, using heuristic fallback: {error}")
         base: str = task.query.strip()
+
         def _infer_source(text: str) -> SourceLiteral:
             t = text.lower()
-            if any(k in t for k in ["clinical", "biomedical", "gene", "protein", "cancer", "pubmed"]):
+            if any(
+                k in t
+                for k in [
+                    "clinical",
+                    "biomedical",
+                    "gene",
+                    "protein",
+                    "cancer",
+                    "pubmed",
+                ]
+            ):
                 return "pubmed"
-            if any(k in t for k in ["github", "code", "implementation", "repo", "repository", "stars:"]):
+            if any(
+                k in t
+                for k in [
+                    "github",
+                    "code",
+                    "implementation",
+                    "repo",
+                    "repository",
+                    "stars:",
+                ]
+            ):
                 return "github"
             if any(k in t for k in ["survey", "review", "meta-analysis", "literature"]):
                 return "scholar"
             return "arxiv"
 
         base_arxiv = GeneratedQuery(
-            query_text=base, source=_infer_source(base), rationale="Direct match to task"
+            query_text=base,
+            source=_infer_source(base),
+            rationale="Direct match to task",
         )
         survey_q = GeneratedQuery(
             query_text=f"{base} AND (survey OR review)",

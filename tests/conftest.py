@@ -16,5 +16,3 @@ def _ensure_project_root_on_path() -> None:
 
 
 _ensure_project_root_on_path()
-
-

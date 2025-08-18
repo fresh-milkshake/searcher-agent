@@ -1,7 +1,5 @@
 from typing import Any, Dict, List
 
-import types
-import pytest
 
 from agent.browsing.manual.sources.github import GitHubRepoBrowser
 from agent.browsing.manual.sources.google_scholar import GoogleScholarBrowser
@@ -22,7 +20,9 @@ class DummyResp:
 
 
 def test_github_search_monkeypatched(monkeypatch: Any) -> None:
-    def fake_get(url: str, params: Dict[str, Any], headers: Dict[str, str], timeout: int) -> DummyResp:
+    def fake_get(
+        url: str, params: Dict[str, Any], headers: Dict[str, str], timeout: int
+    ) -> DummyResp:
         assert "q" in params
         return DummyResp(
             {
@@ -106,5 +106,3 @@ def test_google_scholar_search_monkeypatched(monkeypatch: Any) -> None:
     assert len(results) == 1
     assert results[0].title == "Scholar Result"
     assert results[0].url.startswith("https://scholar.google.com/")
-
-

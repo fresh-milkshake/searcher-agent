@@ -4,7 +4,7 @@ No additional dependencies required. Network calls use ``requests`` and return
 lightweight ``SearchItem`` objects with stable PubMed IDs.
 """
 
-from typing import Iterator, List, Optional
+from typing import Iterator, List, Optional, override
 
 import requests
 
@@ -17,7 +17,10 @@ EUTILS_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 class PubMedBrowser(ManualSource):
     """Manual source for PubMed articles using E-utilities JSON endpoints."""
 
-    def search(self, query: str, max_results: int = 25, start: int = 0) -> List[SearchItem]:
+    @override
+    def search(
+        self, query: str, max_results: int = 25, start: int = 0
+    ) -> List[SearchItem]:
         """Search PubMed and return a page of results.
 
         This uses ``esearch.fcgi`` to obtain a list of PMIDs, then ``esummary.fcgi``
@@ -36,7 +39,9 @@ class PubMedBrowser(ManualSource):
             "retstart": str(start),
             "term": query,
         }
-        esearch_resp = requests.get(f"{EUTILS_BASE}/esearch.fcgi", params=esearch_params, timeout=20)
+        esearch_resp = requests.get(
+            f"{EUTILS_BASE}/esearch.fcgi", params=esearch_params, timeout=20
+        )
         esearch_resp.raise_for_status()
         esearch_json = esearch_resp.json()
         id_list = esearch_json.get("esearchresult", {}).get("idlist", [])
@@ -48,7 +53,9 @@ class PubMedBrowser(ManualSource):
             "retmode": "json",
             "id": ",".join(id_list),
         }
-        esummary_resp = requests.get(f"{EUTILS_BASE}/esummary.fcgi", params=esummary_params, timeout=20)
+        esummary_resp = requests.get(
+            f"{EUTILS_BASE}/esummary.fcgi", params=esummary_params, timeout=20
+        )
         esummary_resp.raise_for_status()
         esummary_json = esummary_resp.json()
         result = esummary_json.get("result", {})
@@ -60,10 +67,21 @@ class PubMedBrowser(ManualSource):
             pubdate = str(info.get("pubdate") or "")
             url = f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
             snippet = pubdate if pubdate else None
-            items.append(SearchItem(title=title, url=url, snippet=snippet, item_id=pmid, extra={"pubdate": pubdate}))
+            items.append(
+                SearchItem(
+                    title=title,
+                    url=url,
+                    snippet=snippet,
+                    item_id=pmid,
+                    extra={"pubdate": pubdate},
+                )
+            )
         return items
 
-    def iter_all(self, query: str, chunk_size: int = 100, limit: Optional[int] = None) -> Iterator[SearchItem]:
+    @override
+    def iter_all(
+        self, query: str, chunk_size: int = 100, limit: Optional[int] = None
+    ) -> Iterator[SearchItem]:
         """Iterate through PubMed results by fetching in chunks.
 
         :param query: Free-text query string.
@@ -86,7 +104,10 @@ class PubMedBrowser(ManualSource):
             if len(page) < chunk_size:
                 return
 
-    def search_all(self, query: str, chunk_size: int = 100, limit: Optional[int] = None) -> List[SearchItem]:
+    @override
+    def search_all(
+        self, query: str, chunk_size: int = 100, limit: Optional[int] = None
+    ) -> List[SearchItem]:
         """Collect PubMed results for a query into a list.
 
         :param query: Free-text query string.
@@ -98,5 +119,3 @@ class PubMedBrowser(ManualSource):
         for item in self.iter_all(query=query, chunk_size=chunk_size, limit=limit):
             results.append(item)
         return results
-
-

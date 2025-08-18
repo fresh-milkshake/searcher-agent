@@ -32,3 +32,22 @@ def remove_html_tags(text: str) -> str:
         'Hello world'
     """
     return re.sub(r"<[^>]*>", "", text)
+
+
+def cut_text(text: str, max_length: int) -> str:
+    """Cut text to max_length characters and add ellipsis if text is longer.
+
+    :param text: Input text.
+    :param max_length: Maximum length of the text.
+    :returns: Cut text with ellipsis if it is longer than max_length.
+
+    Example::
+
+        >>> cut_text("Hello, world!", 5)
+        'Hello...'
+        >>> cut_text("Hello, world!", 12)
+        'Hello, world!'
+    """
+    if len(text) <= max_length:
+        return text
+    return text[:max_length] + "..."

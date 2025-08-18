@@ -252,6 +252,9 @@ async def process_completed_task(bot: Bot, task: Any) -> None:
                 escape_html(str(result)) if result else "✅ Monitoring configured"
             )
             await send_message_to_target_chat(bot, target_chat_id, result_text, user_id)
+        elif task_type == "cycle_limit_notification":
+            # Send cycle limit notification (result already contains HTML formatting)
+            await send_message_to_target_chat(bot, target_chat_id, str(result), user_id)
         elif result:
             await send_message_to_target_chat(
                 bot, target_chat_id, escape_html(str(result)), user_id

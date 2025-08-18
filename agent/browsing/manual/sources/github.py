@@ -5,7 +5,7 @@ limits. Returns repository-level results ordered by stars.
 """
 
 import os
-from typing import Dict, Iterator, List, Optional
+from typing import Dict, Iterator, List, Optional, override
 
 import requests
 
@@ -24,7 +24,10 @@ class GitHubRepoBrowser(ManualSource):
             headers["Authorization"] = f"Bearer {token}"
         return headers
 
-    def search(self, query: str, max_results: int = 25, start: int = 0) -> List[SearchItem]:
+    @override
+    def search(
+        self, query: str, max_results: int = 25, start: int = 0
+    ) -> List[SearchItem]:
         """Search repositories by query, sorted by stars in descending order.
 
         Pagination is mapped from ``start`` and ``max_results`` to GitHub's
@@ -38,9 +41,17 @@ class GitHubRepoBrowser(ManualSource):
 
         per_page = max(1, min(100, max_results))
         page = 1 + (start // per_page)
-        params = {"q": query, "sort": "stars", "order": "desc", "per_page": per_page, "page": page}
+        params = {
+            "q": query,
+            "sort": "stars",
+            "order": "desc",
+            "per_page": per_page,
+            "page": page,
+        }
 
-        resp = requests.get(self.api_url, params=params, headers=self._headers(), timeout=20)
+        resp = requests.get(
+            self.api_url, params=params, headers=self._headers(), timeout=20
+        )
         resp.raise_for_status()
         data = resp.json()
         items_raw = data.get("items", [])
@@ -76,7 +87,10 @@ class GitHubRepoBrowser(ManualSource):
             items = items[offset:]
         return items[:max_results]
 
-    def iter_all(self, query: str, chunk_size: int = 100, limit: Optional[int] = None) -> Iterator[SearchItem]:
+    @override
+    def iter_all(
+        self, query: str, chunk_size: int = 100, limit: Optional[int] = None
+    ) -> Iterator[SearchItem]:
         """Iterate through repository search results by fetching in chunks.
 
         :param query: Free-text search query.
@@ -99,7 +113,10 @@ class GitHubRepoBrowser(ManualSource):
             if len(page) < chunk_size:
                 return
 
-    def search_all(self, query: str, chunk_size: int = 100, limit: Optional[int] = None) -> List[SearchItem]:
+    @override
+    def search_all(
+        self, query: str, chunk_size: int = 100, limit: Optional[int] = None
+    ) -> List[SearchItem]:
         """Collect repository search results for a query into a list.
 
         :param query: Free-text search query.
@@ -111,5 +128,3 @@ class GitHubRepoBrowser(ManualSource):
         for item in self.iter_all(query=query, chunk_size=chunk_size, limit=limit):
             results.append(item)
         return results
-
-

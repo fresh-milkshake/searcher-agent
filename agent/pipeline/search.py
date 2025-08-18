@@ -101,7 +101,9 @@ def arxiv_search(
     return candidates
 
 
-def scholar_search(*, query: str, max_results: int = 50, start: int = 0) -> List[PaperCandidate]:
+def scholar_search(
+    *, query: str, max_results: int = 50, start: int = 0
+) -> List[PaperCandidate]:
     """Search Google Scholar and convert results to lightweight candidates.
 
     Since Scholar results do not provide abstracts, the ``summary`` field uses
@@ -137,7 +139,9 @@ def scholar_search(*, query: str, max_results: int = 50, start: int = 0) -> List
     return out
 
 
-def pubmed_search(*, query: str, max_results: int = 50, start: int = 0) -> List[PaperCandidate]:
+def pubmed_search(
+    *, query: str, max_results: int = 50, start: int = 0
+) -> List[PaperCandidate]:
     """Search PubMed and convert results to candidates.
 
     :param query: Search query string.
@@ -169,7 +173,9 @@ def pubmed_search(*, query: str, max_results: int = 50, start: int = 0) -> List[
     return out
 
 
-def github_search(*, query: str, max_results: int = 50, start: int = 0) -> List[PaperCandidate]:
+def github_search(
+    *, query: str, max_results: int = 50, start: int = 0
+) -> List[PaperCandidate]:
     """Search GitHub repositories and represent them as candidates.
 
     The pipeline treats repositories as candidates with title and snippet.
@@ -225,7 +231,10 @@ def collect_candidates(
 
         if src == "arxiv":
             page = arxiv_search(
-                query=q, categories=task.categories, max_results=per_query_limit, start=0
+                query=q,
+                categories=task.categories,
+                max_results=per_query_limit,
+                start=0,
             )
         elif src == "scholar":
             page = scholar_search(query=q, max_results=per_query_limit, start=0)

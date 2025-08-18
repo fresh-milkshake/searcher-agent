@@ -28,7 +28,9 @@ def _item_to_dict(item: SearchItem) -> Dict[str, object]:
 
 
 @function_tool
-def pubmed_search_tool(query: str, max_results: int = 10, start: int = 0) -> List[Dict[str, object]]:
+def pubmed_search_tool(
+    query: str, max_results: int = 10, start: int = 0
+) -> List[Dict[str, object]]:
     """Search PubMed using E-utilities and return normalized results.
 
     :param query: Free-text query string.
@@ -39,5 +41,3 @@ def pubmed_search_tool(query: str, max_results: int = 10, start: int = 0) -> Lis
     browser = PubMedBrowser()
     items = browser.search(query=query, max_results=max_results, start=start)
     return [_item_to_dict(it) for it in items]
-
-

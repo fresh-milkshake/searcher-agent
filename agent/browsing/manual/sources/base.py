@@ -26,7 +26,9 @@ class ManualSource(Protocol):
     Implementations should be stateless or manage their own lightweight state.
     """
 
-    def search(self, query: str, max_results: int = 25, start: int = 0, **kwargs: object) -> List[SearchItem]:
+    def search(
+        self, query: str, max_results: int = 25, start: int = 0, **kwargs: object
+    ) -> List[SearchItem]:
         """Return a single page of results for a query.
 
         :param query: Free-text query.
@@ -69,7 +71,9 @@ class ManualSource(Protocol):
         ...
 
 
-def paginate_results(results: Iterable[SearchItem], limit: Optional[int]) -> Iterator[SearchItem]:
+def paginate_results(
+    results: Iterable[SearchItem], limit: Optional[int]
+) -> Iterator[SearchItem]:
     """Yield up to a limit of results from an iterable.
 
     :param results: Iterable of search items to paginate.
@@ -83,5 +87,3 @@ def paginate_results(results: Iterable[SearchItem], limit: Optional[int]) -> Ite
             return
         count += 1
         yield item
-
-
