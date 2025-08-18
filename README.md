@@ -3,7 +3,7 @@
 # 🔬 Searcher Agent
 
 <p align="center">
-  <strong>AI assistant that solves your research tasks by searching multiple sources</strong>
+  <strong>AI-powered research assistant with intelligent task management and multi-source analysis</strong>
 </p>
 
 <p align="center">
@@ -17,7 +17,9 @@
 
 <p align="center">
   <a href="#what-it-does">What It Does</a> •
+  <a href="#architecture">Architecture</a> •
   <a href="#quick-setup">Quick Setup</a> •
+  <a href="#usage">Usage</a> •
   <a href="#development">Development</a> •
   <a href="https://fresh-milkshake.github.io/searcher-agent/use-cases.html">Use Cases</a> •
   <a href="https://fresh-milkshake.github.io/searcher-agent/">Docs</a>
@@ -29,44 +31,107 @@
 
 ## What It Does
 
-**Turns your goal into actionable findings** — you describe a task in natural language, the assistant plans queries, automatically chooses the best sources (arXiv, Google Scholar, PubMed, GitHub) per query, ranks and analyzes items, and sends you a concise report with the most useful findings.
+**Intelligent Research Automation** — Searcher Agent transforms your research goals into actionable insights through a sophisticated multi-stage pipeline that intelligently manages tasks, searches multiple sources, and delivers personalized results.
 
-- Plans multiple search queries for your task
-- Selects the most relevant source per query (arXiv, Google Scholar, PubMed, GitHub)
-- Retrieves candidates from multiple sources
-- Ranks with BM25 over title + abstract
-- Analyzes top items with an LLM or a local heuristic
-- Decides whether it’s worth notifying you and composes a short report
+### Key Features
 
-Examples of tasks:
+🎯 **Smart Task Management**
+- Queue-based task processing with priority management
+- Cycle-based execution with configurable limits per user plan
+- Intelligent notifications when cycle limits are reached
+- Automatic task status tracking and progress monitoring
 
-- “Find practical studies on vision transformers for medical imaging”
-- “Summarize top benchmarks for small-context RAG”
-- “Discover recent diffusion methods for texture generation”
+🔍 **Multi-Source Intelligence**
+- Automatic source selection per query (arXiv, Google Scholar, PubMed, GitHub)
+- BM25 ranking over title + abstract for relevance scoring
+- LLM-powered analysis with configurable relevance thresholds
+- Structured result presentation with actionable insights
+
+⚡ **User-Centric Experience**
+- Free (5 cycles) and Premium (100 cycles) user plans
+- Real-time progress tracking and status updates
+- Group chat support for team collaboration
+- Personalized notification preferences
+
+### Example Tasks
+
+- "Find practical studies on vision transformers for medical imaging"
+- "Summarize top benchmarks for small-context RAG"
+- "Discover recent diffusion methods for texture generation"
 
 ```mermaid
 sequenceDiagram
   participant U as User
   participant B as Telegram Bot
-  participant DB as SQLite DB
-  participant AG as Agent
-  participant AX as Data Sources
+  participant Q as Task Queue
+  participant AG as Agent Manager
+  participant P as Pipeline
+  participant S as Sources
   participant LLM as LLM Provider
 
-  U->>B: new task
-  B->>DB: create task (start monitoring)
-  AG->>DB: fetch pending tasks
-  AG->>AG: process monitoring tasks
-  loop monitoring cycles
-    AG->>AX: search papers or code (query, filters)
-    AG->>AG: analyze paper
-    AG->>LLM: analyze paper / generate report / further research
-    LLM-->>AG: structured analysis
-    AG->>DB: save paper and analysis
-  end
-  B->>DB: fetch new analyses for user
-  B->>U: send analysis report
+  U->>B: /task "research description"
+  B->>Q: create task with priority
+  AG->>Q: fetch next queued task
+  AG->>P: run research pipeline
+  P->>S: multi-source search
+  S-->>P: candidates
+  P->>LLM: analyze relevance
+  LLM-->>P: structured analysis
+  P->>AG: pipeline results
+  AG->>Q: update task status
+  AG->>B: cycle limit notification
+  B->>U: personalized report
 ```
+
+---
+
+## Architecture
+
+### Modular Design
+
+```
+searcher-agent/
+├── agent/                # AI Agent System
+│   ├── manager.py        # Task processing orchestrator
+│   ├── pipeline/         # Research pipeline stages
+│   └── browsing/         # Source-specific tools
+├── bot/                  # Telegram Bot Interface
+│   ├── handlers/         # Command handlers
+│   └── notifications/    # Notification system
+├── api/                  # REST API Interface
+├── shared/               # Shared Components
+│   ├── database/         # Modular Database Layer
+│   │   ├── operations/   # Database operations
+│   │   ├── models.py     # SQLAlchemy ORM models
+│   │   └── enums.py      # Database enums
+│   ├── llm.py            # LLM configuration
+│   └── logging.py        # Centralized logging
+└── tests/                # Test Suite
+```
+
+### Database Architecture
+
+**Core Models:**
+- `User` - User management with plan-based limits
+- `UserTask` - Enhanced task model with queue support
+- `TaskQueue` - Priority-based task processing queue
+- `RateLimitRecord` - Anti-spam protection
+- `TaskStatistics` - Processing metrics and analytics
+
+**Agent Models:**
+- `ResearchTopic` - Research topic management
+- `ArxivPaper` - Paper storage and metadata
+- `PaperAnalysis` - Relevance analysis results
+- `UserSettings` - User preferences and thresholds
+
+### Task Processing Flow
+
+1. **Task Creation** → User creates task via bot/API
+2. **Queue Management** → Task added to priority queue
+3. **Agent Processing** → Agent picks next task from queue
+4. **Pipeline Execution** → Multi-stage research pipeline
+5. **Cycle Management** → Track cycles, notify on limits
+6. **Result Delivery** → Personalized notifications to user
 
 ---
 
@@ -96,14 +161,28 @@ uv sync
 Create `.env` file in the project root:
 
 ```ini
+# Bot Configuration
 TELEGRAM_BOT_TOKEN=your-telegram-bot-token
+
+# LLM Configuration
+# if you have an API key for OpenAI:
+# OPENAI_API_KEY=your-openai-key-here
+# if you use OpenRouter provider:
+# OPENAI_API_KEY=
 OPENAI_API_KEY=your-openai-api-key
 OPENROUTER_API_KEY=your-openrouter-key
-DATABASE_PATH=database.db
+
+# Database Configuration
+DATABASE_URL=sqlite:///./database.db
+
+# Agent Configuration
 AGENT_POLL_SECONDS=30
-AGENT_DRY_RUN=0
+AGENT_DRY_RUN=false
 AGENT_ID=main_agent
-PIPELINE_USE_AGENTS_ANALYZE=1
+
+# Pipeline Configuration
+PIPELINE_USE_AGENTS_STRATEGY=1
+PIPELINE_USE_AGENTS_ANALYZE=0
 ```
 
 ### 3️⃣ Configure LLM
@@ -133,20 +212,26 @@ uv run python main.py
 # Or run components separately:
 uv run python start_bot.py    # 🤖 Bot only
 uv run python start_agent.py  # 🧠 Agent only
-
-# Or run REST API only:
 uv run python start_api.py    # 🌐 REST API on http://localhost:8000
 ```
 
 ---
 
-## How to Use
+## Usage
 
-### Create a Task (recommended)
+### User Plans
 
-```
-/task "AI for medical imaging" Find practical studies, datasets, and evaluation results
-```
+**Free Plan:**
+- 5 tasks per day
+- 1 concurrent task
+- 5 search cycles per task
+- Basic notifications
+
+**Premium Plan:**
+- 100 tasks per day
+- 5 concurrent tasks
+- 100 search cycles per task
+- Advanced notifications and analytics
 
 ### Bot Commands
 
@@ -158,106 +243,97 @@ uv run python start_api.py    # 🌐 REST API on http://localhost:8000
 <th>Example</th>
 </tr>
 <tr>
-<td rowspan="6"><strong>Main</strong></td>
-<td><code>/start</code></td>
-<td>Help & commands</td>
-<td>-</td>
-</tr>
-<tr>
+<td rowspan="6"><strong>Tasks</strong></td>
 <td><code>/task</code></td>
-<td>Create a new autonomous search task</td>
-<td><code>/task "Short title" Brief description</code></td>
-</tr>
-<tr>
-<td><code>/status_task</code></td>
-<td>List your tasks</td>
-<td>-</td>
-</tr>
-<tr>
-<td><code>/pause_task</code>, <code>/resume_task</code></td>
-<td>Control a task by id</td>
-<td><code>/pause_task 12</code></td>
+<td>Create new research task</td>
+<td><code>/task "AI for medical imaging"</code></td>
 </tr>
 <tr>
 <td><code>/status</code></td>
-<td>Current system status</td>
+<td>View task status and progress</td>
 <td>-</td>
 </tr>
 <tr>
 <td><code>/history</code></td>
-<td>Recent findings</td>
+<td>Browse task results</td>
 <td>-</td>
 </tr>
 <tr>
-<td rowspan="6"><strong>Settings</strong></td>
-<td><code>/settings</code></td>
-<td>View current settings</td>
-<td>-</td>
+<td><code>/pause_task</code></td>
+<td>Pause specific task</td>
+<td><code>/pause_task 123</code></td>
 </tr>
 <tr>
-<td><code>/set_relevance</code></td>
-<td>Set minimum relevance threshold</td>
-<td><code>/set_relevance relevance 60</code></td>
+<td><code>/resume_task</code></td>
+<td>Resume paused task</td>
+<td><code>/resume_task 123</code></td>
 </tr>
 <tr>
+<td><code>/cancel_task</code></td>
+<td>Cancel running task</td>
+<td><code>/cancel_task 123</code></td>
+</tr>
+<tr>
+<td rowspan="5"><strong>Settings</strong></td>
 <td><code>/set_notification</code></td>
-<td>Set notification thresholds</td>
+<td>Configure notification thresholds</td>
 <td><code>/set_notification instant 80</code></td>
 </tr>
 <tr>
-<td><code>/reset_settings</code></td>
-<td>Reset to defaults</td>
+<td><code>/set_group</code></td>
+<td>Enable group notifications</td>
 <td>-</td>
 </tr>
 <tr>
-<td><code>/set_group</code>, <code>/unset_group</code></td>
-<td>Configure group notifications</td>
+<td><code>/unset_group</code></td>
+<td>Disable group notifications</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>/upgrade</code></td>
+<td>Upgrade to Premium plan</td>
+<td>-</td>
+</tr>
+<tr>
+<td><code>/help</code></td>
+<td>Show help and commands</td>
 <td>-</td>
 </tr>
 </table>
 
-#### Topics (legacy)
+### Task Lifecycle
 
-Legacy topic-based monitoring commands have been removed from the default bot experience. Use `/task` to create autonomous tasks instead.
+1. **Creation** → Task added to queue with priority
+2. **Processing** → Agent executes research pipeline
+3. **Cycles** → Multiple search cycles (5 for Free, 100 for Premium)
+4. **Completion** → Results delivered with cycle limit notification
+5. **History** → Results available for review
 
-### Group Chat Support
+### Cycle Limit Notifications
 
-The bot supports **group chat notifications** - you can configure it to send all findings to a group chat instead of personal messages.
+When a task reaches its cycle limit, users receive personalized notifications:
 
-#### Setup Group Notifications
-
-1. **Add bot to group chat**
-2. **Use command in group**: `/set_group`
-3. **All notifications will be sent to the group**
-
-Use `/unset_group` to return notifications to your personal chat.
-
-### Settings
-
-The bot provides **fine-grained control** over analysis and notification parameters.
-
-#### Relevance Threshold
-
-Control how strict the analysis should be (0–100):
-
-```bash
-/set_relevance relevance 70
+**With Results:**
+```
+🎉 Task #1 completed!
+✅ Found results for your query
+🔄 Cycles completed: 5/5 (Plan: Free)
+🤖 Hope the results were helpful!
+💡 Want to continue research?
+• Create new task with refined query
+• Or upgrade to Premium for unlimited cycles
 ```
 
-#### Notification Settings
-
-Configure when you want to be notified:
-
-```bash
-/set_notification instant 80  # Instant notifications (≥80% relevance)
-/set_notification daily 50    # Daily digest (≥50% relevance)
-/set_notification weekly 30   # Weekly digest (≥30% relevance)
+**Without Results:**
 ```
-
-#### Reset to Defaults
-
-```bash
-/reset_settings 
+🔄 Task #5 completed
+📝 Your query description...
+🔄 Cycles completed: 5/5 (Plan: Free)
+❌ No results found for this query
+💡 Recommendations:
+• Try reformulating your query
+• Use different keywords
+• Or upgrade to Premium for more cycles
 ```
 
 ---
@@ -289,57 +365,9 @@ curl -X POST http://localhost:8000/v1/run \
     "max_analyze": 10,
     "min_relevance": 50.0
   }'
-
-Notes:
-- You no longer need to specify a source. The agent will choose the best source(s) per query automatically.
 ```
 
 ---
-
-## Example Output
-
-```
-Findings for your task: AI for medical imaging
-
-- Vision Transformers in Radiology
-  Why useful for this task: addresses transformers, medical imaging, classification relevant to your task
-  Link: https://arxiv.org/abs/XXXX.XXXXX
-
-- Self-supervised pretraining for limited data MRI
-  Why useful for this task: addresses pretraining, limited data, MRI relevant to your task
-  Link: https://arxiv.org/abs/YYYY.YYYYY
-```
-
----
-
-## Development
-
-- Run tests: `uv run pytest`
-- Quick quality checks: `uv run python quality-check.py <target>`
-- Build docs: `uv run sphinx-build -b html docs docs/_build/html`
-
-## Documentation
-
-- Full documentation: [searcher-agent docs](https://fresh-milkshake.github.io/searcher-agent/)
-
-### Architecture (brief)
-
-1. Strategy: generate queries from your task
-2. Retrieval: multi-source search (arXiv, Google Scholar via site-restricted DDG, PubMed, GitHub)
-3. Ranking: BM25 over title + abstract
-4. Analysis: LLM-based (or heuristic) relevance + summary
-5. Decision: select top items and compose a concise report
-
-### Integrations
-
-- arXiv: RSS/Atom via `shared.arxiv_parser`
-- Google Scholar: site-restricted DuckDuckGo search using `ddgs` (with legacy `duckduckgo_search` fallback)
-- PubMed: E-utilities (`esearch` + `esummary`)
-- GitHub: Search API v3 (repositories)
-
-### Agent scheduling behavior
-
-- The agent always processes the most recently updated active user task first.
 
 ## 📄 License
 
