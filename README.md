@@ -1,13 +1,11 @@
 
 <img src="assets/header-tall.svg" width="100%">
 
-<p align="left">
-<img src="https://img.shields.io/badge/Python-3.13%2B-151515?logo=python&logoColor=white" alt="Python Version">
-<img src="https://img.shields.io/badge/License-MIT-151515?logo=open-source-initiative&logoColor=white" alt="License">
-<img src="https://img.shields.io/badge/AI-OpenAI-151515?logo=openai&logoColor=white" alt="AI Model">
-<img src="https://img.shields.io/badge/Bot-Telegram-151515?logo=telegram&logoColor=white" alt="Telegram Bot">
-<img src="https://img.shields.io/badge/Database-SQLite-151515?logo=sqlite&logoColor=white" alt="Database">
-</p>
+![Python Version](https://img.shields.io/badge/Python-3.13%2B-151515?logo=python&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-151515?logo=open-source-initiative&logoColor=white)
+![](https://img.shields.io/badge/AI-OpenAI-151515?logo=openai&logoColor=white)
+![Telegram Bot](https://img.shields.io/badge/Bot-Telegram-151515?logo=telegram&logoColor=white)
+![Database](https://img.shields.io/badge/Database-SQLite-151515?logo=sqlite&logoColor=white)
 
 <p align="center">
   <a href="#what-it-does">What It Does</a> •
