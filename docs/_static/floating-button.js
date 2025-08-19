@@ -1,7 +1,7 @@
 // Inject a floating GitHub button linking to the repository
 (function () {
   try {
-    const repoUrl = 'https://github.com/fresh-milkshake/searcher-agent';
+    const repoUrl = 'https://github.com/fresh-milkshake/research-ai';
     const btn = document.createElement('div');
     btn.className = 'floating-github';
     btn.innerHTML = '<div class="label">Open on GitHub</div>' +

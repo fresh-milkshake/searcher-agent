@@ -1,4 +1,4 @@
-"""Sphinx configuration for the searcher-agent project.
+"""Sphinx configuration for the research-ai project.
 
 The configuration enables MyST Markdown, autosummary, autodoc, and other
 useful extensions. It is set up to discover project modules from the
@@ -19,7 +19,7 @@ if PROJECT_ROOT not in sys.path:
 
 
 # -- Project information -----------------------------------------------------
-project = "searcher-agent"
+project = "research-ai"
 author = "fresh-milkshake"
 current_year = str(datetime.utcnow().year)
 copyright = f"{current_year}, {author}"

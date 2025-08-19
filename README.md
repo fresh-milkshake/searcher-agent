@@ -1,18 +1,12 @@
-<div align="center">
 
-# 🔬 Searcher Agent
+<img src="assets/header-tall.svg" width="100%">
 
-<p align="center">
-  <strong>AI-powered research assistant with intelligent task management and multi-source analysis</strong>
-</p>
-
-<p align="center">
- 
- <img src="https://img.shields.io/badge/Python-3.13%2B-3776AB?logo=python&logoColor=white" alt="Python Version">
-<img src="https://img.shields.io/badge/License-MIT-4CAF50?logo=open-source-initiative&logoColor=white" alt="License">
-<img src="https://img.shields.io/badge/AI-OpenAI-10A37F?logo=openai&logoColor=white" alt="AI Model">
-<img src="https://img.shields.io/badge/Bot-Telegram-229ED9?logo=telegram&logoColor=white" alt="Telegram Bot">
-<img src="https://img.shields.io/badge/Database-SQLite-07405E?logo=sqlite&logoColor=white" alt="Database">
+<p align="left">
+<img src="https://img.shields.io/badge/Python-3.13%2B-151515?logo=python&logoColor=white" alt="Python Version">
+<img src="https://img.shields.io/badge/License-MIT-151515?logo=open-source-initiative&logoColor=white" alt="License">
+<img src="https://img.shields.io/badge/AI-OpenAI-151515?logo=openai&logoColor=white" alt="AI Model">
+<img src="https://img.shields.io/badge/Bot-Telegram-151515?logo=telegram&logoColor=white" alt="Telegram Bot">
+<img src="https://img.shields.io/badge/Database-SQLite-151515?logo=sqlite&logoColor=white" alt="Database">
 </p>
 
 <p align="center">
@@ -20,18 +14,13 @@
   <a href="#architecture">Architecture</a> •
   <a href="#quick-setup">Quick Setup</a> •
   <a href="#usage">Usage</a> •
-  <a href="#development">Development</a> •
-  <a href="https://fresh-milkshake.github.io/searcher-agent/use-cases.html">Use Cases</a> •
-  <a href="https://fresh-milkshake.github.io/searcher-agent/">Docs</a>
+  <a href="https://privateai-com.github.io/research-ai/">Docs</a>
 </p>
 
-</div>
+## Overview
 
----
 
-## What It Does
-
-**Intelligent Research Automation** — Searcher Agent transforms your research goals into actionable insights through a sophisticated multi-stage pipeline that intelligently manages tasks, searches multiple sources, and delivers personalized results.
+**research-ai** — agentic research assistant that transforms your research goals into actionable insights through a sophisticated multi-stage pipeline that intelligently manages tasks, searches multiple sources, and delivers personalized results.
 
 ### Key Features
 
@@ -90,7 +79,7 @@ sequenceDiagram
 ### Modular Design
 
 ```
-searcher-agent/
+research-ai/
 ├── agent/                # AI Agent System
 │   ├── manager.py        # Task processing orchestrator
 │   ├── pipeline/         # Research pipeline stages
@@ -382,5 +371,5 @@ This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) f
 Give this project a ⭐ if you found it useful!
   <br>
   <br>
-  <a href="#-searcher-agent" style="font-size: 1.2em; color: white;">⬆️ Back to top</a>
+  <a href="#overview" style="font-size: 1.2em; color: white;">⬆️ Back to top</a>
 </div>

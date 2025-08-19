@@ -127,7 +127,7 @@ def _selected_to_summary(items: List[ScoredAnalysis]) -> List[PaperSummary]:
     return summaries
 
 
-app = FastAPI(title="Searcher Agent API", version="0.1.0")
+app = FastAPI(title="Research AI API", version="0.1.0")
 
 
 @app.get("/healthz")

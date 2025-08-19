@@ -1,7 +1,7 @@
 [project]
-name = "searcher-agent"
+name = "research-ai"
 version = "0.1.0"
-description = "Add your description here"
+description = "Your AI-powered research companion with intelligent task management and multi-source analysis"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [

@@ -1,10 +1,10 @@
 ---
-title: searcher-agent Documentation
+title: research-ai Documentation
 ---
 
-# searcher-agent
+# research-ai
 
-Welcome to the documentation for the `searcher-agent` project.
+Welcome to the documentation for the `research-ai` project.
 
 This site contains an overview, how to get started, usage examples, and a full
 API reference generated from the source code in `agent/`, `bot/`, and `shared/`.
@@ -22,7 +22,7 @@ api/modules
 
 ## Project overview
 
-`searcher-agent` provides an end-to-end research assistant that:
+`research-ai` provides an end-to-end research assistant that:
 
 - Generates multiple search queries for a user task
 - Retrieves candidates from multiple sources (arXiv, Google Scholar, PubMed, GitHub) and deduplicates them

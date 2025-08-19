@@ -1,5 +1,4 @@
-"""
-Database module for the Searcher Agent project.
+"""Database module for the Research AI project.
 
 This package provides a modular database layer with SQLAlchemy async support.
 All database models, enums, and operations are organized into separate modules.
