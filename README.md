@@ -1,4 +1,5 @@
 
+<div align="left">
 <img src="assets/header-tall.svg" width="100%">
 
 ![Python Version](https://img.shields.io/badge/Python-3.13%2B-151515?logo=python&logoColor=white)
@@ -6,6 +7,7 @@
 ![](https://img.shields.io/badge/AI-OpenAI-151515?logo=openai&logoColor=white)
 ![Telegram Bot](https://img.shields.io/badge/Bot-Telegram-151515?logo=telegram&logoColor=white)
 ![Database](https://img.shields.io/badge/Database-SQLite-151515?logo=sqlite&logoColor=white)
+</div>
 
 <p align="center">
   <a href="#what-it-does">What It Does</a> •
