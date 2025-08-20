@@ -366,9 +366,6 @@ This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) f
 ---
 
 <div align="center">
-
-**Built by [fresh-milkshake](https://github.com/fresh-milkshake)**
-<br>
 Give this project a ⭐ if you found it useful!
   <br>
   <br>
