@@ -31,6 +31,7 @@ class GoogleScholarBrowser(ManualSource):
         start: int = 0,
         *,
         region: str = "wt-wt",
+        **kwargs: object,
     ) -> List[SearchItem]:
         """Search Scholar results using DuckDuckGo site restriction.
 
@@ -86,6 +87,7 @@ class GoogleScholarBrowser(ManualSource):
         limit: Optional[int] = None,
         *,
         region: str = "wt-wt",
+        **kwargs: object,
     ) -> Iterator[SearchItem]:
         """Iterate through Scholar results by fetching in chunks.
 
@@ -120,6 +122,7 @@ class GoogleScholarBrowser(ManualSource):
         limit: Optional[int] = None,
         *,
         region: str = "wt-wt",
+        **kwargs: object,
     ) -> List[SearchItem]:
         """Collect Scholar results for a query into a list.
 

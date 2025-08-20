@@ -105,8 +105,12 @@ async def analyze_candidates(
                     raw = str(getattr(run_result, "final_output", "")).strip() or str(
                         run_result
                     )
-                    data = json.loads(raw)
-                    out = AnalysisAgentOutput.model_validate(data)
+                    try:
+                        data = json.loads(raw)
+                        out = AnalysisAgentOutput.model_validate(data)
+                    except (json.JSONDecodeError, ValueError) as parse_error:
+                        logger.warning(f"Failed to parse agent output as JSON: {parse_error}")
+                        raise
                 relevance = float(out.relevance)
                 summary = str(out.summary).strip()
                 key_fragments = out.key_fragments

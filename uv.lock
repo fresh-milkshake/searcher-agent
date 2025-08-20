@@ -1121,6 +1121,11 @@ dev = [
     { name = "sphinx-copybutton" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pyright" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "aiogram", specifier = ">=3.21.0" },
@@ -1153,6 +1158,9 @@ requires-dist = [
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30.5" },
 ]
 provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pyright", specifier = ">=1.1.403" }]
 
 [[package]]
 name = "roman-numerals-py"

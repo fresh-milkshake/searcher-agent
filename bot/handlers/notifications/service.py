@@ -215,7 +215,11 @@ async def process_completed_task(bot: Bot, task: Any) -> None:
     :returns: ``None``.
     """
     try:
-        task_data = json.loads(str(task.data)) if task.data else {}
+        try:
+            task_data = json.loads(str(task.data)) if task.data else {}
+        except json.JSONDecodeError as json_error:
+            logger.error(f"Failed to parse task data as JSON: {json_error}")
+            task_data = {}
         task_type = task_data.get("task_type", getattr(task, "task_type", "unknown"))
         result = task.result
         user_id = task_data.get("user_id")

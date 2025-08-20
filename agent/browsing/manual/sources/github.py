@@ -26,7 +26,7 @@ class GitHubRepoBrowser(ManualSource):
 
     @override
     def search(
-        self, query: str, max_results: int = 25, start: int = 0
+        self, query: str, max_results: int = 25, start: int = 0, **kwargs: object
     ) -> List[SearchItem]:
         """Search repositories by query, sorted by stars in descending order.
 
@@ -89,7 +89,11 @@ class GitHubRepoBrowser(ManualSource):
 
     @override
     def iter_all(
-        self, query: str, chunk_size: int = 100, limit: Optional[int] = None
+        self,
+        query: str,
+        chunk_size: int = 100,
+        limit: Optional[int] = None,
+        **kwargs: object,
     ) -> Iterator[SearchItem]:
         """Iterate through repository search results by fetching in chunks.
 
@@ -115,7 +119,11 @@ class GitHubRepoBrowser(ManualSource):
 
     @override
     def search_all(
-        self, query: str, chunk_size: int = 100, limit: Optional[int] = None
+        self,
+        query: str,
+        chunk_size: int = 100,
+        limit: Optional[int] = None,
+        **kwargs: object,
     ) -> List[SearchItem]:
         """Collect repository search results for a query into a list.
 
