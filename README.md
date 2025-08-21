@@ -49,6 +49,12 @@
 - "Summarize top benchmarks for small-context RAG"
 - "Discover recent diffusion methods for texture generation"
 
+---
+
+## Architecture
+
+### Modular Design
+
 ```mermaid
 sequenceDiagram
   participant U as User
@@ -73,11 +79,7 @@ sequenceDiagram
   B->>U: personalized report
 ```
 
----
-
-## Architecture
-
-### Modular Design
+### Project Structure
 
 ```
 research-ai/
