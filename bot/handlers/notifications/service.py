@@ -6,8 +6,7 @@ from typing import Any
 from aiogram import Bot
 from aiogram.enums import ParseMode
 
-from agents import Agent, Runner
-from shared.llm import AGENT_MODEL
+from shared.llm import get_agent_model
 from bot.utils import escape_html
 from shared.db import (
     ensure_connection,
@@ -49,10 +48,13 @@ async def get_target_chat_id(user_id: int) -> int:
         return user_id
 
 
-_simplifier_agent = Agent(
-    name="Notification Simplifier",
-    model=AGENT_MODEL,
-    instructions=dedent(
+def _get_simplifier_agent():
+    """Lazy initialization of the simplifier agent."""
+    from agents import Agent
+    return Agent(
+        name="Notification Simplifier",
+        model=get_agent_model(),
+        instructions=dedent(
         """
         You rewrite technical research notifications into clear, friendly messages for a general audience.
 
@@ -71,8 +73,8 @@ _simplifier_agent = Agent(
         - No markdown or HTML tags, only plain text
         - Max length 600 characters total
         """
-    ),
-)
+        ),
+    )
 
 
 async def simplify_for_layperson(text: str) -> str:
@@ -82,7 +84,8 @@ async def simplify_for_layperson(text: str) -> str:
     :returns: Simplified text without markup, friendly to non-technical readers.
     """
     try:
-        result: Any = await Runner.run(_simplifier_agent, text)
+        from agents import Runner
+        result: Any = await Runner.run(_get_simplifier_agent(), text)
         simplified = (
             str(getattr(result, "final_output", "")).strip() or str(result).strip()
         )

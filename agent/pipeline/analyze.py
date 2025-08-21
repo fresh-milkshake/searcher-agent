@@ -12,9 +12,7 @@ import os
 from textwrap import dedent
 from typing import List
 
-from agents import Agent, Runner
-
-from shared.llm import AGENT_MODEL
+from shared.llm import get_agent_model
 from .models import (
     AnalysisAgentOutput,
     AnalysisInput,
@@ -27,20 +25,23 @@ from .utils import retry_async
 logger = get_logger(__name__)
 
 
-_ANALYZER = Agent(
-    name="Paper Analyzer",
-    model=AGENT_MODEL,
-    instructions=dedent(
-        """
-        You are an expert research assistant. Given a paper's title and abstract,
-        assess relevance to the user's task, write a concise summary, and return
-        a percentage relevance.
+def _get_analyzer():
+    """Lazy initialization of the analyzer agent."""
+    from agents import Agent
+    return Agent(
+        name="Paper Analyzer",
+        model=get_agent_model(),
+        instructions=dedent(
+            """
+            You are an expert research assistant. Given a paper's title and abstract,
+            assess relevance to the user's task, write a concise summary, and return
+            a percentage relevance.
 
-        Return structured JSON.
-        """
-    ),
-    output_type=AnalysisAgentOutput,
-)
+            Return structured JSON.
+            """
+        ),
+        output_type=AnalysisAgentOutput,
+    )
 
 
 def _build_prompt(
@@ -95,7 +96,8 @@ async def analyze_candidates(
         if has_api_key and use_agents:
             try:
                 prompt = _build_prompt(task_query, item.candidate, item.snippets)
-                run_result = await retry_async(lambda: Runner.run(_ANALYZER, prompt))
+                from agents import Runner
+                run_result = await retry_async(lambda: Runner.run(_get_analyzer(), prompt))
                 # Prefer parsed when available
                 out = getattr(run_result, "parsed", None)
                 if out is None:

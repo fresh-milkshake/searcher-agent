@@ -15,15 +15,12 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from shared.db import init_db, list_completed_tasks_since
 from shared.logging import get_logger
 from bot.handlers import (
-    general_router,
-    settings_router,
-    notifications_router,
-    tasks_router,
+    get_general_router,
+    get_settings_router,
+    get_notifications_router,
+    get_tasks_router,
 )
-from bot.handlers.notifications import (
-    process_completed_task,
-    check_new_analyses,
-)
+# Lazy imports will be done inside functions
 
 load_dotenv()
 
@@ -36,10 +33,10 @@ logger = get_logger(__name__)
 bot = Bot(token=BOT_TOKEN)
 
 dp = Dispatcher()
-dp.include_router(settings_router)
-dp.include_router(notifications_router)
-dp.include_router(tasks_router)
-dp.include_router(general_router)
+dp.include_router(get_settings_router())
+dp.include_router(get_notifications_router())
+dp.include_router(get_tasks_router())
+dp.include_router(get_general_router())
 
 
 async def main() -> None:
@@ -58,6 +55,7 @@ async def main() -> None:
 
     # Start background task to check for new analyses
     logger.info("Starting background analysis checker...")
+    from bot.handlers.notifications import check_new_analyses
     asyncio.create_task(check_new_analyses(bot))
     logger.info("Background analysis checker started")
 
@@ -70,6 +68,7 @@ async def main() -> None:
             try:
                 tasks = await list_completed_tasks_since(last_checked_id)
                 for task in tasks:
+                    from bot.handlers.notifications import process_completed_task
                     await process_completed_task(bot, task)
                     last_checked_id = max(last_checked_id, task.id)
                 await asyncio.sleep(2)

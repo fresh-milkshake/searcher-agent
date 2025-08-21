@@ -12,42 +12,83 @@ Environment variables:
 """
 
 import os
-from agents import OpenAIChatCompletionsModel
-from openai import AsyncOpenAI
+from typing import Optional, TYPE_CHECKING
 from dotenv import load_dotenv
+
+if TYPE_CHECKING:
+    from agents import OpenAIChatCompletionsModel
+    from openai import AsyncOpenAI
 
 load_dotenv(override=True)
 
-_openai_client = AsyncOpenAI(
-    base_url="https://api.openai.com/v1", api_key=os.getenv("OPENAI_API_KEY")
-)
-_ollama_client = AsyncOpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
-_open_router = AsyncOpenAI(
-    base_url="https://openrouter.ai/api/v1", api_key=os.getenv("OPENROUTER_API_KEY")
-)
+# Lazy client initialization 
+_openai_client: Optional["AsyncOpenAI"] = None
+_ollama_client: Optional["AsyncOpenAI"] = None  
+_open_router: Optional["AsyncOpenAI"] = None
+_agent_model: Optional["OpenAIChatCompletionsModel"] = None
+_multimodal_model: Optional["OpenAIChatCompletionsModel"] = None
 
-Qwen3 = OpenAIChatCompletionsModel(model="qwen3", openai_client=_ollama_client)
-Gemma3 = OpenAIChatCompletionsModel(model="gemma3", openai_client=_openai_client)
-Gpt4o = OpenAIChatCompletionsModel(model="gpt-4o", openai_client=_openai_client)
-Gpt4oMini = OpenAIChatCompletionsModel(
-    model="gpt-4o-mini", openai_client=_openai_client
-)
 
-Qwen3_480B_Coder = OpenAIChatCompletionsModel(
-    model="qwen/qwen3-coder:free", openai_client=_open_router
-)
-Qwen3_235B_A22B = OpenAIChatCompletionsModel(
-    model="qwen/qwen3-235b-a22b:free", openai_client=_open_router
-)
-Qwen2_5_72B_Instruct = OpenAIChatCompletionsModel(
-    model="qwen/qwen-2.5-72b-instruct:free", openai_client=_open_router
-)
-Deepseek_R1_0528 = OpenAIChatCompletionsModel(
-    model="deepseek/deepseek-r1-0528:free", openai_client=_open_router
-)
-Deepseek_Chat_V3_0324 = OpenAIChatCompletionsModel(
-    model="deepseek/deepseek-chat-v3-0324:free", openai_client=_open_router
-)
+def _get_openai_client() -> "AsyncOpenAI":
+    """Lazy initialization of OpenAI client."""
+    global _openai_client
+    if _openai_client is None:
+        from openai import AsyncOpenAI
+        _openai_client = AsyncOpenAI(
+            base_url="https://api.openai.com/v1", 
+            api_key=os.getenv("OPENAI_API_KEY")
+        )
+    return _openai_client
 
-AGENT_MODEL = Deepseek_Chat_V3_0324
-MULTIMODAL_MODEL = Gpt4oMini
+
+def _get_ollama_client() -> "AsyncOpenAI":
+    """Lazy initialization of Ollama client."""
+    global _ollama_client
+    if _ollama_client is None:
+        from openai import AsyncOpenAI
+        _ollama_client = AsyncOpenAI(
+            base_url="http://localhost:11434/v1", 
+            api_key="ollama"
+        )
+    return _ollama_client
+
+
+def _get_open_router() -> "AsyncOpenAI":
+    """Lazy initialization of OpenRouter client."""
+    global _open_router
+    if _open_router is None:
+        from openai import AsyncOpenAI
+        _open_router = AsyncOpenAI(
+            base_url="https://openrouter.ai/api/v1", 
+            api_key=os.getenv("OPENROUTER_API_KEY")
+        )
+    return _open_router
+
+
+def get_agent_model() -> "OpenAIChatCompletionsModel":
+    """Get the default agent model with lazy initialization."""
+    global _agent_model
+    if _agent_model is None:
+        from agents import OpenAIChatCompletionsModel
+        _agent_model = OpenAIChatCompletionsModel(
+            model="deepseek/deepseek-chat-v3-0324:free", 
+            openai_client=_get_open_router()
+        )
+    return _agent_model
+
+
+def get_multimodal_model() -> "OpenAIChatCompletionsModel":
+    """Get the default multimodal model with lazy initialization."""
+    global _multimodal_model
+    if _multimodal_model is None:
+        from agents import OpenAIChatCompletionsModel
+        _multimodal_model = OpenAIChatCompletionsModel(
+            model="gpt-4o-mini", 
+            openai_client=_get_openai_client()
+        )
+    return _multimodal_model
+
+
+# For backward compatibility
+AGENT_MODEL = property(lambda self: get_agent_model())
+MULTIMODAL_MODEL = property(lambda self: get_multimodal_model())

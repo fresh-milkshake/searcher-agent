@@ -7,9 +7,7 @@ uses an agent to produce a plain-text report when there are strong candidates.
 from textwrap import dedent
 from typing import List, Optional
 
-from agents import Agent, Runner
-
-from shared.llm import AGENT_MODEL
+from shared.llm import get_agent_model
 from shared.logging import get_logger
 from .models import AnalysisResult, DecisionReport, PipelineTask, ScoredAnalysis
 from .utils import retry_async
@@ -56,32 +54,35 @@ def select_top(
     return items[: max(1, min(len(items), 3))]
 
 
-_REPORTER = Agent(
-    name="Decision Reporter",
-    model=AGENT_MODEL,
-    instructions=dedent(
-        """
-        You are a research assistant. Given a user task and a small set of analyzed papers
-        with summaries and relevance, decide whether there are truly helpful items.
+def _get_reporter():
+    """Lazy initialization of the reporter agent."""
+    from agents import Agent
+    return Agent(
+        name="Decision Reporter",
+        model=get_agent_model(),
+        instructions=dedent(
+            """
+            You are a research assistant. Given a user task and a small set of analyzed papers
+            with summaries and relevance, decide whether there are truly helpful items.
 
-        If there are, produce a plain text report focused on the user task:
-        - Start with one header line: "Findings for your task: <task>"
-        - Then list up to 3 items in this structure (each 1–2 lines):
-          - <Title>
-            Why useful for this task: <one short sentence tailored to the task>
-            Link: <url>
-        - Be brief and actionable: 6–12 lines total for the whole report
-        - Keep language clear and human-friendly; no HTML/Markdown, plain text only
+            If there are, produce a plain text report focused on the user task:
+            - Start with one header line: "Findings for your task: <task>"
+            - Then list up to 3 items in this structure (each 1–2 lines):
+              - <Title>
+                Why useful for this task: <one short sentence tailored to the task>
+                Link: <url>
+            - Be brief and actionable: 6–12 lines total for the whole report
+            - Keep language clear and human-friendly; no HTML/Markdown, plain text only
 
-        IMPORTANT: Strictly fit within 3000 characters.
-        You must return a JSON object with two fields:
-        {"should_notify": boolean, "report_text": string|null}
-        - If there is nothing truly helpful, set should_notify=false and report_text=null
-        - Otherwise set should_notify=true and report_text to the plain text report
-        """
-    ),
-    output_type=DecisionReport,
-)
+            IMPORTANT: Strictly fit within 3000 characters.
+            You must return a JSON object with two fields:
+            {"should_notify": boolean, "report_text": string|null}
+            - If there is nothing truly helpful, set should_notify=false and report_text=null
+            - Otherwise set should_notify=true and report_text to the plain text report
+            """
+        ),
+        output_type=DecisionReport,
+    )
 
 
 async def make_decision_and_report(
@@ -118,7 +119,8 @@ async def make_decision_and_report(
                 ],
             }
         )
-        result = await retry_async(lambda: Runner.run(_REPORTER, payload))
+        from agents import Runner
+        result = await retry_async(lambda: Runner.run(_get_reporter(), payload))
         return result.final_output
     except Exception as error:
         logger.warning(f"Decision reporter failed, fallback to template: {error}")

@@ -3,26 +3,27 @@
 from typing import List
 from textwrap import dedent
 
-from agents import Agent, Runner
-
-from shared.llm import AGENT_MODEL
+from shared.llm import get_agent_model
 from .models import PipelineOutput, TelegramSummary
 from shared.logging import get_logger
 
 logger = get_logger(__name__)
 
 
-_FORMATTER = Agent(
-    name="Telegram Formatter",
-    model=AGENT_MODEL,
-    instructions=dedent(
-        """
-        Format a set of analyzed papers into short Telegram HTML. Keep it compact.
-        Output JSON with a single field `html` containing the final HTML.
-        """
-    ),
-    output_type=TelegramSummary,
-)
+def _get_formatter():
+    """Lazy initialization of the formatter agent."""
+    from agents import Agent
+    return Agent(
+        name="Telegram Formatter",
+        model=get_agent_model(),
+        instructions=dedent(
+            """
+            Format a set of analyzed papers into short Telegram HTML. Keep it compact.
+            Output JSON with a single field `html` containing the final HTML.
+            """
+        ),
+        output_type=TelegramSummary,
+    )
 
 
 def _fallback_format(output: PipelineOutput) -> str:
@@ -83,7 +84,8 @@ async def to_telegram_html_agent(output: PipelineOutput) -> str:
             }
         )
         logger.debug("Calling formatter agent")
-        run_result = await Runner.run(_FORMATTER, prompt)
+        from agents import Runner
+        run_result = await Runner.run(_get_formatter(), prompt)
         out = getattr(run_result, "parsed", None)
         if out and out.html:
             logger.info("Formatter agent produced HTML output")
