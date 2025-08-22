@@ -52,9 +52,13 @@ async def retry_async(
         value = await retry_async(lambda: get_value(), attempts=5, base_delay=0.2)
         assert value == 7
     """
+    logger.debug(
+        f"Executing {func.__name__} with {attempts} attempts and {base_delay}s base delay..."
+    )
     delay = base_delay
     last_error: Optional[Exception] = None
     for attempt in range(1, attempts + 1):
+        logger.debug(f"Attempt to run {func.__name__} ({attempt}/{attempts})...")
         try:
             return await func()
         except Exception as error:  # noqa: BLE001
@@ -62,7 +66,7 @@ async def retry_async(
             if attempt >= attempts:
                 break
             logger.warning(
-                f"Retryable error on attempt {attempt}/{attempts}: {error}. Sleeping {delay:.1f}s"
+                f"Retryable error on attempt ({attempt}/{attempts}): {error}. Sleeping {delay:.1f}s"
             )
             await asyncio.sleep(delay)
             delay *= factor

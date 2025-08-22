@@ -57,6 +57,7 @@ def select_top(
 def _get_reporter():
     """Lazy initialization of the reporter agent."""
     from agents import Agent
+
     return Agent(
         name="Decision Reporter",
         model=get_agent_model(),
@@ -120,6 +121,8 @@ async def make_decision_and_report(
             }
         )
         from agents import Runner
+
+        logger.info("Making request to decision reporter...")
         result = await retry_async(lambda: Runner.run(_get_reporter(), payload))
         return result.final_output
     except Exception as error:
