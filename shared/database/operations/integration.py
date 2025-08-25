@@ -88,6 +88,12 @@ async def complete_task_processing(
             end_time = datetime.now()
             processing_time = (end_time - task.processing_started_at).total_seconds()
 
+        # Get queue entry before updating task status
+        queue_result = await session.execute(
+            select(TaskQueue).where(TaskQueue.task_id == task.id)
+        )
+        queue_entry = queue_result.scalar_one_or_none()
+
         # Update task status
         if success:
             # Increment cycle count first
@@ -98,6 +104,10 @@ async def complete_task_processing(
                 # Task is complete - no more cycles needed
                 task.status = TaskStatus.COMPLETED
                 task.processing_completed_at = datetime.now()
+
+                # Remove from queue as task is fully completed
+                if queue_entry:
+                    await session.delete(queue_entry)
 
                 # Check if task has results and send notification
                 results = await get_user_task_results(task.id)
@@ -111,10 +121,6 @@ async def complete_task_processing(
                 # Don't set processing_completed_at yet as task is not fully complete
 
                 # Update queue entry to reset processing state
-                queue_result = await session.execute(
-                    select(TaskQueue).where(TaskQueue.task_id == task.id)
-                )
-                queue_entry = queue_result.scalar_one_or_none()
                 if queue_entry:
                     queue_entry.worker_id = None  # Reset worker assignment
                     queue_entry.started_at = None  # Reset start time for reprocessing
@@ -125,6 +131,10 @@ async def complete_task_processing(
                 datetime.now()
             )  # Set completion time even for failures
             task.error_message = error_message
+
+            # Remove from queue as task failed and won't be retried
+            if queue_entry:
+                await session.delete(queue_entry)
 
         task.updated_at = datetime.now()
 
@@ -246,6 +256,31 @@ async def create_user_task(user_id: int, description: str) -> UserTask:
 
     task, _ = await create_user_task_with_queue(user, description)
     return task
+
+
+async def cleanup_orphaned_queue_entries() -> int:
+    """Clean up queue entries for tasks that are already completed or failed.
+
+    This function should be called on agent startup to remove stale queue entries
+    that may have been left behind from previous runs.
+
+    :returns: Number of orphaned entries cleaned up.
+    """
+    async with SessionLocal() as session:
+        # Find queue entries for completed/failed tasks
+        result = await session.execute(
+            select(TaskQueue)
+            .join(UserTask)
+            .where(UserTask.status.in_([TaskStatus.COMPLETED, TaskStatus.FAILED]))
+        )
+        orphaned_entries = list(result.scalars().all())
+
+        # Delete orphaned entries
+        for entry in orphaned_entries:
+            await session.delete(entry)
+
+        await session.commit()
+        return len(orphaned_entries)
 
 
 async def _notify_cycle_limit_reached(user_task: UserTask, has_results: bool) -> None:

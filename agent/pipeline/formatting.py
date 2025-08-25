@@ -13,6 +13,7 @@ logger = get_logger(__name__)
 def _get_formatter():
     """Lazy initialization of the formatter agent."""
     from agents import Agent
+
     return Agent(
         name="Telegram Formatter",
         model=get_agent_model(),
@@ -85,6 +86,7 @@ async def to_telegram_html_agent(output: PipelineOutput) -> str:
         )
         logger.debug("Calling formatter agent")
         from agents import Runner
+
         run_result = await Runner.run(_get_formatter(), prompt)
         out = getattr(run_result, "parsed", None)
         if out and out.html:

@@ -34,13 +34,12 @@ def _normalize_query_for_arxiv(query: str) -> str:
     """
     import re
 
-    cleaned = re.sub(r"\bNEAR/\d+\b", " ", query, flags=re.IGNORECASE)
-    # Remove mentions of pdf/document which are rarely present in abstracts
+    cleaned = re.sub(r"\bNEAR/\d+\b", " ", query, re.IGNORECASE)
     cleaned = re.sub(
         r"\b(pdf|document|doc|pdf2text|pdftables)\b",
         " ",
         cleaned,
-        flags=re.IGNORECASE,
+        re.IGNORECASE,
     )
     # Avoid empty parentheses leftovers
     cleaned = re.sub(r"\(\s*\)", " ", cleaned)
@@ -212,48 +211,78 @@ def github_search(
 def collect_candidates(
     task: PipelineTask, queries: Iterable[GeneratedQuery], per_query_limit: int = 50
 ) -> List[PaperCandidate]:
-    """Run source-specific search per query and collect unique candidates.
+    """Run source-specific search per query and collect unique candidates with parallel processing.
 
     :param task: The pipeline task providing categories and other context.
     :param queries: Iterable of :class:`GeneratedQuery` with per-query source.
     :param per_query_limit: Max results retrieved for each query (default 50).
     :returns: Unique candidates from all queries.
     """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
     logger = get_logger(__name__)
     seen: set[str] = set()
     collected: List[PaperCandidate] = []
+    queries_list = list(queries)
 
-    for gq in queries:
+    def search_single_source(gq: GeneratedQuery) -> List[PaperCandidate]:
+        """Search a single source for the given query."""
         q = gq.query_text
         src = gq.source
         logger.debug(f"Collecting candidates for query: {q} from {src}")
 
-        if src == "arxiv":
-            page = arxiv_search(
-                query=q,
-                categories=task.categories,
-                max_results=per_query_limit,
-                start=0,
-            )
-        elif src == "scholar":
-            page = scholar_search(query=q, max_results=per_query_limit, start=0)
-        elif src == "pubmed":
-            page = pubmed_search(query=q, max_results=per_query_limit, start=0)
-        elif src == "github":
-            page = github_search(query=q, max_results=per_query_limit, start=0)
-        else:
-            logger.warning(f"Unknown source '{src}', skipping query")
-            continue
+        try:
+            if src == "arxiv":
+                page = arxiv_search(
+                    query=q,
+                    categories=task.categories,
+                    max_results=per_query_limit,
+                    start=0,
+                )
+            elif src == "scholar":
+                page = scholar_search(query=q, max_results=per_query_limit, start=0)
+            elif src == "pubmed":
+                page = pubmed_search(query=q, max_results=per_query_limit, start=0)
+            elif src == "github":
+                page = github_search(query=q, max_results=per_query_limit, start=0)
+            else:
+                logger.warning(f"Unknown source '{src}', skipping query")
+                return []
 
-        for c in page:
-            if c.arxiv_id in seen:
-                continue
-            seen.add(c.arxiv_id)
-            collected.append(c)
-        logger.debug(f"Collected {len(page)} items for query")
+            logger.debug(f"Collected {len(page)} items for query from {src}")
+            return page
+        except Exception as e:
+            logger.error(f"Error searching {src} with query '{q}': {e}")
+            return []
 
-    logger.info(f"Total unique candidates collected: {len(collected)}")
+    # Use ThreadPoolExecutor for I/O bound operations (network requests)
+    max_workers = min(len(queries_list), 8)  # Limit concurrent requests
+    logger.debug(f"Running {len(queries_list)} searches with {max_workers} workers")
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all search tasks
+        future_to_query = {
+            executor.submit(search_single_source, gq): gq for gq in queries_list
+        }
+
+        # Collect results as they complete
+        for future in as_completed(future_to_query):
+            gq = future_to_query[future]
+            try:
+                page = future.result()
+                for c in page:
+                    if c.arxiv_id in seen:
+                        continue
+                    seen.add(c.arxiv_id)
+                    collected.append(c)
+            except Exception as e:
+                logger.error(
+                    f"Search task failed for query '{gq.query_text}' from {gq.source}: {e}"
+                )
+
+    logger.info(
+        f"Total unique candidates collected: {len(collected)} from {len(queries_list)} parallel searches"
+    )
     return collected
 
 

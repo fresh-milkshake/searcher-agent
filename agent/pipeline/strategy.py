@@ -74,11 +74,12 @@ async def generate_query_plan(task: PipelineTask) -> QueryPlan:
         logger.info("Strategy agent disabled via env; using heuristic queries")
         raise Exception("strategy_agent_disabled")
     try:
+
         def _run_strategy_agent():
             return Runner.run(STRATEGY_AGENT, prompt)
 
         logger.info("Making a call to the strategy agent...")
-        result = await retry_async(_run_strategy_agent)
+        result = await retry_async(_run_strategy_agent, attempts=2, base_delay=0.5)
         plan_obj: QueryPlan = result.final_output
         num_q = len(plan_obj.queries) if getattr(plan_obj, "queries", None) else 0
         logger.info(f"Strategy agent produced {num_q} queries")

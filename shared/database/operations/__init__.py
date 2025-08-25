@@ -89,6 +89,7 @@ from .integration import (
     link_analysis_to_user_task,
     get_user_task_results,
     create_user_task,
+    cleanup_orphaned_queue_entries,
 )
 
 __all__ = [
@@ -161,4 +162,5 @@ __all__ = [
     "link_analysis_to_user_task",
     "get_user_task_results",
     "create_user_task",
+    "cleanup_orphaned_queue_entries",
 ]

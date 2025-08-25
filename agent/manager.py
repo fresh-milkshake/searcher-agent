@@ -28,6 +28,7 @@ from shared.db import (
     complete_task_processing,
     create_research_topic_for_user_task,
     link_analysis_to_user_task,
+    cleanup_orphaned_queue_entries,
 )
 
 from agent.pipeline.pipeline import run_pipeline
@@ -47,7 +48,7 @@ class RuntimeConfig:
     :ivar test_user_id: Optional override to send notifications to a test user.
     """
 
-    poll_seconds: int = 30
+    poll_seconds: int = 10
     dry_run: bool = False
     agent_id: str = "main_agent"
     test_user_id: Optional[int] = None
@@ -58,9 +59,16 @@ def _read_config() -> RuntimeConfig:
 
     :returns: A populated :class:`RuntimeConfig` instance.
     """
-    poll = int(os.getenv("AGENT_POLL_SECONDS", "30"))
-    dry = os.getenv("AGENT_DRY_RUN", "0").lower() in {"1", "true", "yes"}
-    agent_id = os.getenv("AGENT_ID", "main_agent")
+    try:
+        poll = int(os.getenv("AGENT_POLL_SECONDS", "10"))
+        dry = os.getenv("AGENT_DRY_RUN", "0").lower() in {"1", "true", "yes"}
+        agent_id = os.getenv("AGENT_ID", "main_agent")
+    except Exception as e:
+        logger.error(f"Error reading config: {e}")
+        poll = 10
+        dry = False
+        agent_id = "main_agent"
+
     test_uid: Optional[int] = None
     if os.getenv("AGENT_TEST_USER_ID"):
         try:
@@ -291,6 +299,14 @@ async def main() -> None:
         f"Agent starting (poll={cfg.poll_seconds}s, dry_run={'yes' if cfg.dry_run else 'no'}, agent_id={cfg.agent_id})"
     )
 
+    # Clean up orphaned queue entries on startup
+    try:
+        cleaned_count = await cleanup_orphaned_queue_entries()
+        if cleaned_count > 0:
+            logger.info(f"Cleaned up {cleaned_count} orphaned queue entries on startup")
+    except Exception as cleanup_error:
+        logger.error(f"Failed to clean up orphaned queue entries: {cleanup_error}")
+
     while True:
         try:
             # Get next task from queue (QUEUED status)
@@ -308,8 +324,8 @@ async def main() -> None:
             logger.info(f"Processing queued task {task.id}: {task.description[:50]}...")
             await _process_user_task(cfg, task)
 
-            # Brief pause between tasks to allow for proper status updates
-            await asyncio.sleep(1)
+            # Brief pause between tasks to allow for proper status updates (reduced delay)
+            await asyncio.sleep(0.1)
 
         except Exception as loop_error:
             logger.error(f"Agent loop error: {loop_error}")

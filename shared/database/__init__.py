@@ -90,6 +90,7 @@ from .operations import (
     create_research_topic_for_user_task,
     link_analysis_to_user_task,
     get_user_task_results,
+    cleanup_orphaned_queue_entries,
 )
 
 # Backward compatibility
@@ -177,6 +178,7 @@ __all__ = [
     "create_research_topic_for_user_task",
     "link_analysis_to_user_task",
     "get_user_task_results",
+    "cleanup_orphaned_queue_entries",
     # Legacy function
     "create_user_task",
 ]

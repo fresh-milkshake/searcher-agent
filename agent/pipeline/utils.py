@@ -30,7 +30,7 @@ async def retry_async(
     func: Callable[[], Awaitable[T]],
     *,
     attempts: int = 3,
-    base_delay: float = 5.0,
+    base_delay: float = 1.0,  # Reduced from 5.0 to 1.0 seconds
     factor: float = 2.0,
 ) -> T:
     """Retry an async operation with exponential backoff.
@@ -39,7 +39,7 @@ async def retry_async(
                  factory defers creation of the coroutine until it is awaited,
                  avoiding "already awaited" errors on retries.
     :param attempts: Total attempts including the first call (>= 1). Default 3.
-    :param base_delay: Initial delay in seconds before the next attempt. Default 5.0.
+    :param base_delay: Initial delay in seconds before the next attempt. Default 1.0.
     :param factor: Multiplicative backoff factor after each failure. Default 2.0.
     :returns: The value returned by the successful call to ``func``.
     :raises Exception: Re-raises the last exception encountered if all attempts fail.
@@ -49,7 +49,7 @@ async def retry_async(
         async def get_value() -> int:
             return 7
 
-        value = await retry_async(lambda: get_value(), attempts=5, base_delay=0.2)
+        value = await retry_async(lambda: get_value(), attempts=5, base_delay=0.5)
         assert value == 7
     """
     logger.debug(

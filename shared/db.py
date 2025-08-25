@@ -84,6 +84,7 @@ from shared.database import (
     count_relevant_analyses_for_user,
     swap_user_active_topics,
     deactivate_user_topics,
+    cleanup_orphaned_queue_entries,
 )
 
 # Legacy aliases for backward compatibility
@@ -177,4 +178,5 @@ __all__ = [
     "create_research_topic_for_user_task",
     "link_analysis_to_user_task",
     "get_user_task_results",
+    "cleanup_orphaned_queue_entries",
 ]
